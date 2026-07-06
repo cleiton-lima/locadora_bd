@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\VeiculoController;
 use App\Http\Controllers\Api\VendaController;
 use Illuminate\Support\Facades\Route;
 
+// Listagem de rotas de API para os recursos do sistema
 Route::apiResource('filiais', FilialController::class);
 Route::apiResource('montadoras', MontadoraController::class);
 Route::apiResource('oficinas', OficinaController::class);
