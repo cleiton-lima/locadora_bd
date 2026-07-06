@@ -1,0 +1,44 @@
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
+
+# VSCode / IDEs
+.vscode/
+.idea/
+.zed/
+.nova/
+.cursor/
+.codex/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Laravel / PHP
+back/vendor/
+back/node_modules/
+back/public/build/
+back/public/hot
+back/public/storage
+back/storage/*.key
+back/storage/pail/
+back/.phpunit.cache/
+back/.phpunit.result.cache
+back/auth.json
+back/_ide_helper.php
+back/.phpactor.json
+
+# Laravel residual local
+back/database/database.sqlite
+
+# Front futuro
+front/node_modules/
+front/.nuxt/
+front/.output/
+front/dist/
+front/build/
+front/.env
+front/.env.*
+!front/.env.example
