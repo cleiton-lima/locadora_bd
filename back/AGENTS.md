@@ -17,7 +17,7 @@ O banco de dados oficial se chama:
 locadora_imd
 ```
 
-A modelagem oficial foi feita no MySQL Workbench e o script SQL final cria o schema `locadora_imd`.
+A modelagem oficial foi normalizada em BCNF e o script SQL final cria o schema `locadora_imd`.
 
 O Laravel deve apenas se conectar a esse banco e executar operações com SQL puro.
 
@@ -105,7 +105,11 @@ Se estiver usando Docker, ajustar `DB_HOST`, `DB_PORT`, `DB_USERNAME` e `DB_PASS
 
 Não criar migrations Laravel para substituir a modelagem do Workbench.
 
-O script oficial do banco é o SQL exportado pelo MySQL Workbench.
+O script oficial do banco é:
+
+```text
+docs/bdnormalizado/locadora_imd-bcnf.sql
+```
 
 ---
 
@@ -160,9 +164,15 @@ Veiculo
 Servico
 Empresa
 Contrato_Frota
+CNH
 Pessoa_Fisica
 Aluguel
 Venda
+Estado
+Cidade
+Bairro
+Logradouro
+CEP
 Telefone_oficina
 Telefone_montadora
 Usuario_endereco
@@ -209,12 +219,36 @@ Servico.Veiculo_id
 Servico.Administrador_Funcionario_id
 Servico.Oficina_id
 
-Empresa.Cliente_id
+Empresa.Usuario_id
 Empresa.CNPJ
 
 Pessoa_Fisica.Cliente_id
 Pessoa_Fisica.CPF
-Pessoa_Fisica.CNH
+Pessoa_Fisica.CNH_numero
+
+CNH.numero
+CNH.estado
+CNH.categoria
+CNH.data_emissao
+CNH.data_validade
+
+Estado.sigla
+Estado.nome
+
+Cidade.id
+Cidade.nome
+Cidade.Estado_sigla
+
+Bairro.id
+Bairro.nome
+Bairro.Cidade_id
+
+Logradouro.id
+Logradouro.nome
+Logradouro.Bairro_id
+
+CEP.CEP
+CEP.Logradouro_id
 
 Contrato_Frota.Gerente_Comercial_id
 Contrato_Frota.Empresa_id
@@ -596,7 +630,7 @@ DB::selectOne('SELECT Funcionario_id FROM Gerente_Comercial WHERE Funcionario_id
 
 DB::selectOne('SELECT Cliente_id FROM Pessoa_Fisica WHERE Cliente_id = ?', [$pessoaFisicaId]);
 
-DB::selectOne('SELECT Cliente_id FROM Empresa WHERE Cliente_id = ?', [$empresaId]);
+DB::selectOne('SELECT Usuario_id FROM Empresa WHERE Usuario_id = ?', [$empresaId]);
 
 DB::selectOne('SELECT id FROM Lote WHERE id = ?', [$loteId]);
 
@@ -618,7 +652,7 @@ Usuario.email
 Usuario.username
 Empresa.CNPJ
 Pessoa_Fisica.CPF
-Pessoa_Fisica.CNH
+Pessoa_Fisica.CNH_numero
 Veiculo.placa
 ```
 
@@ -631,9 +665,9 @@ DB::selectOne('SELECT id FROM Usuario WHERE username = ?', [$username]);
 
 DB::selectOne('SELECT Cliente_id FROM Pessoa_Fisica WHERE CPF = ?', [$cpf]);
 
-DB::selectOne('SELECT Cliente_id FROM Pessoa_Fisica WHERE CNH = ?', [$cnh]);
+DB::selectOne('SELECT Cliente_id FROM Pessoa_Fisica WHERE CNH_numero = ?', [$cnhNumero]);
 
-DB::selectOne('SELECT Cliente_id FROM Empresa WHERE CNPJ = ?', [$cnpj]);
+DB::selectOne('SELECT Usuario_id FROM Empresa WHERE CNPJ = ?', [$cnpj]);
 
 DB::selectOne('SELECT id FROM Veiculo WHERE placa = ?', [$placa]);
 ```
@@ -1103,7 +1137,7 @@ Regras:
 
 ```text
 - Gerente_Comercial_id deve existir em Gerente_Comercial.Funcionario_id;
-- Empresa_id deve existir em Empresa.Cliente_id;
+- Empresa_id deve existir em Empresa.Usuario_id;
 - data_final não pode ser menor que data_inicio;
 - quantidade_veiculos deve ser maior que zero.
 ```

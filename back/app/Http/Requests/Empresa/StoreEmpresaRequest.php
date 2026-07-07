@@ -17,7 +17,7 @@ class StoreEmpresaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'cliente_id' => ['required', 'integer'],
+            'usuario_id' => ['required', 'integer'],
             'cnpj' => ['required', 'string', 'size:14'],
         ];
     }

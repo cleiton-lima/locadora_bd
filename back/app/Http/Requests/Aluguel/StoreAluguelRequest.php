@@ -22,7 +22,7 @@ class StoreAluguelRequest extends FormRequest
             'pessoa_fisica_id' => ['nullable', 'integer', 'required_without:contrato_frota_id'],
             'contrato_frota_id' => ['nullable', 'integer', 'required_without:pessoa_fisica_id'],
             'status' => ['required', 'string', 'max:30'],
-            'valor' => ['required', 'numeric', 'gt:0'],
+            'valor' => ['nullable', 'numeric', 'gt:0'],
             'tipo' => ['required', 'string', 'max:30'],
             'data_inicial' => ['required', 'date'],
             'data_final' => ['nullable', 'date', 'after_or_equal:data_inicial'],

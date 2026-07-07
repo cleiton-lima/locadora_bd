@@ -36,7 +36,7 @@ class ContratoFrotaService
     public function empresaExiste(int $empresaId): bool
     {
         return DB::selectOne("
-            SELECT Cliente_id FROM Empresa WHERE Cliente_id = ?
+            SELECT Usuario_id FROM Empresa WHERE Usuario_id = ?
         ", [$empresaId]) !== null;
     }
 

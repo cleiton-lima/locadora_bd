@@ -1,0 +1,37 @@
+analisar_schema.
+
+=== INICIANDO ANALISE BCNF DO SCHEMA LOCADORA ===
+
+SUCESSO: A tabela oficina ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela montadora ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela filial ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela estado ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela usuario ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela funcionario ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela gerente_comercial ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela administrador ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela atendente ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela empresa ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela cnh ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela pessoa_fisica ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela lote ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela veiculo ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela servico ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela contrato_frota ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela aluguel ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela venda ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela telefone_oficina ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela telefone_montadora ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela usuario_telefone ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela filial_telefone ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela cidade ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela bairro ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela logradouro ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela cep ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela usuario_endereco ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela oficina_endereco ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela montadora_endereco ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela filial_endereco ESTA na Forma Normal de Boyce-Codd (BCNF).
+
+=== ANALISE CONCLUIDA ===
+true.

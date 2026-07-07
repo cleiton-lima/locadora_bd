@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Requests\PessoaFisica;
+namespace App\Http\Requests\Aluguel;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdatePessoaFisicaRequest extends FormRequest
+class DevolverAluguelRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -17,8 +17,8 @@ class UpdatePessoaFisicaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'cpf' => ['required', 'string', 'size:11'],
-            'cnh_numero' => ['required', 'string', 'size:11'],
+            'atendente_devolucao_id' => ['required', 'integer'],
+            'data_final' => ['required', 'date'],
         ];
     }
 }

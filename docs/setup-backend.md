@@ -20,7 +20,7 @@ back/
 O script SQL oficial do banco fica em:
 
 ```text
-docs/locadora_imd.sql
+docs/bdnormalizado/locadora_imd-bcnf.sql
 ```
 
 ---
@@ -43,7 +43,7 @@ Importante: este projeto **não usa ORM** e **não usa migrations Laravel para c
 O banco foi modelado no MySQL Workbench e deve ser criado usando o arquivo:
 
 ```text
-docs/locadora_imd.sql
+docs/bdnormalizado/locadora_imd-bcnf.sql
 ```
 
 ---
@@ -302,13 +302,13 @@ locadora_imd
 A estrutura está em:
 
 ```text
-docs/locadora_imd.sql
+docs/bdnormalizado/locadora_imd-bcnf.sql
 ```
 
 Na raiz do projeto, rode:
 
 ```bash
-mysql -u root -p < docs/locadora_imd.sql
+mysql -u root -p < docs/bdnormalizado/locadora_imd-bcnf.sql
 ```
 
 Digite a senha do MySQL.
@@ -577,13 +577,13 @@ php artisan migrate
 O banco deve ser criado pelo arquivo:
 
 ```text
-docs/locadora_imd.sql
+docs/bdnormalizado/locadora_imd-bcnf.sql
 ```
 
 Se precisar recriar o banco:
 
 ```bash
-mysql -u root -p < docs/locadora_imd.sql
+mysql -u root -p < docs/bdnormalizado/locadora_imd-bcnf.sql
 ```
 
 ---
@@ -735,7 +735,7 @@ O banco ainda não foi criado.
 Rode na raiz do projeto:
 
 ```bash
-mysql -u root -p < docs/locadora_imd.sql
+mysql -u root -p < docs/bdnormalizado/locadora_imd-bcnf.sql
 ```
 
 ---

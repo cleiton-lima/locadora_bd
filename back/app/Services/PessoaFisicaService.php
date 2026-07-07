@@ -11,18 +11,32 @@ class PessoaFisicaService
     public function listar(): array
     {
         return DB::select("
-            SELECT Cliente_id, CPF, CNH, estado, categoria, data_emissao, data_validade
-            FROM Pessoa_Fisica
-            ORDER BY Cliente_id
+            SELECT pf.Cliente_id,
+                   pf.CPF,
+                   pf.CNH_numero,
+                   c.estado AS cnh_estado,
+                   c.categoria AS cnh_categoria,
+                   c.data_emissao AS cnh_data_emissao,
+                   c.data_validade AS cnh_data_validade
+            FROM Pessoa_Fisica pf
+            INNER JOIN CNH c ON c.numero = pf.CNH_numero
+            ORDER BY pf.Cliente_id
         ");
     }
 
     public function buscarPorId(int $clienteId): ?object
     {
         return DB::selectOne("
-            SELECT Cliente_id, CPF, CNH, estado, categoria, data_emissao, data_validade
-            FROM Pessoa_Fisica
-            WHERE Cliente_id = ?
+            SELECT pf.Cliente_id,
+                   pf.CPF,
+                   pf.CNH_numero,
+                   c.estado AS cnh_estado,
+                   c.categoria AS cnh_categoria,
+                   c.data_emissao AS cnh_data_emissao,
+                   c.data_validade AS cnh_data_validade
+            FROM Pessoa_Fisica pf
+            INNER JOIN CNH c ON c.numero = pf.CNH_numero
+            WHERE pf.Cliente_id = ?
         ", [$clienteId]);
     }
 
@@ -48,19 +62,26 @@ class PessoaFisicaService
         return $registro !== null;
     }
 
-    public function cnhExiste(string $cnh, ?int $ignorarId = null): bool
+    public function cnhExiste(string $cnhNumero, ?int $ignorarId = null): bool
     {
         if ($ignorarId !== null) {
             $registro = DB::selectOne("
-                SELECT Cliente_id FROM Pessoa_Fisica WHERE CNH = ? AND Cliente_id != ?
-            ", [$cnh, $ignorarId]);
+                SELECT Cliente_id FROM Pessoa_Fisica WHERE CNH_numero = ? AND Cliente_id != ?
+            ", [$cnhNumero, $ignorarId]);
         } else {
             $registro = DB::selectOne("
-                SELECT Cliente_id FROM Pessoa_Fisica WHERE CNH = ?
-            ", [$cnh]);
+                SELECT Cliente_id FROM Pessoa_Fisica WHERE CNH_numero = ?
+            ", [$cnhNumero]);
         }
 
         return $registro !== null;
+    }
+
+    public function cnhCadastroExiste(string $cnhNumero): bool
+    {
+        return DB::selectOne("
+            SELECT numero FROM CNH WHERE numero = ?
+        ", [$cnhNumero]) !== null;
     }
 
     public function criar(array $data): int
@@ -69,20 +90,12 @@ class PessoaFisicaService
             INSERT INTO Pessoa_Fisica (
                 Cliente_id,
                 CPF,
-                CNH,
-                estado,
-                categoria,
-                data_emissao,
-                data_validade
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                CNH_numero
+            ) VALUES (?, ?, ?)
         ", [
             $data['cliente_id'],
             $data['cpf'],
-            $data['cnh'],
-            $data['estado'],
-            $data['categoria'],
-            $data['data_emissao'],
-            $data['data_validade'],
+            $data['cnh_numero'],
         ]);
 
         return (int) $data['cliente_id'];
@@ -92,15 +105,11 @@ class PessoaFisicaService
     {
         return DB::update("
             UPDATE Pessoa_Fisica
-            SET CPF = ?, CNH = ?, estado = ?, categoria = ?, data_emissao = ?, data_validade = ?
+            SET CPF = ?, CNH_numero = ?
             WHERE Cliente_id = ?
         ", [
             $data['cpf'],
-            $data['cnh'],
-            $data['estado'],
-            $data['categoria'],
-            $data['data_emissao'],
-            $data['data_validade'],
+            $data['cnh_numero'],
             $clienteId,
         ]);
     }
