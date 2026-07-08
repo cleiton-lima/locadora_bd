@@ -22,9 +22,15 @@ class VeiculoController extends Controller
 
     public function store(StoreVeiculoRequest $request)
     {
-        $data = $request->validated();
+        $data = $this->normalizarAdministradores($request->validated());
 
-        if (! $this->service->administradorExiste($data['administrador_funcionario_id'])) {
+        if (! $this->service->administradorExiste($data['administrador_cadastro_id'])) {
+            return response()->json([
+                'message' => 'Registro relacionado não encontrado.',
+            ], 404);
+        }
+
+        if (! empty($data['administrador_responsavel_id']) && ! $this->service->administradorExiste($data['administrador_responsavel_id'])) {
             return response()->json([
                 'message' => 'Registro relacionado não encontrado.',
             ], 404);
@@ -77,9 +83,15 @@ class VeiculoController extends Controller
             ], 404);
         }
 
-        $data = $request->validated();
+        $data = $this->normalizarAdministradores($request->validated());
 
-        if (! $this->service->administradorExiste($data['administrador_funcionario_id'])) {
+        if (! $this->service->administradorExiste($data['administrador_cadastro_id'])) {
+            return response()->json([
+                'message' => 'Registro relacionado não encontrado.',
+            ], 404);
+        }
+
+        if (! empty($data['administrador_responsavel_id']) && ! $this->service->administradorExiste($data['administrador_responsavel_id'])) {
             return response()->json([
                 'message' => 'Registro relacionado não encontrado.',
             ], 404);
@@ -121,5 +133,19 @@ class VeiculoController extends Controller
         $this->service->remover($id);
 
         return response()->json(null, 204);
+    }
+
+    private function normalizarAdministradores(array $data): array
+    {
+        if ($data['status'] === 'VENDIDO') {
+            $data['administrador_responsavel_id'] = null;
+            return $data;
+        }
+
+        if (empty($data['administrador_responsavel_id'])) {
+            $data['administrador_responsavel_id'] = $data['administrador_cadastro_id'];
+        }
+
+        return $data;
     }
 }

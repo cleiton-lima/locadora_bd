@@ -24,13 +24,13 @@ class EmpresaController extends Controller
     {
         $data = $request->validated();
 
-        if (! $this->service->usuarioExiste($data['cliente_id'])) {
+        if (! $this->service->usuarioExiste($data['usuario_id'])) {
             return response()->json([
                 'message' => 'Registro relacionado não encontrado.',
             ], 404);
         }
 
-        if ($this->service->buscarPorId($data['cliente_id'])) {
+        if ($this->service->buscarPorId($data['usuario_id'])) {
             return response()->json([
                 'message' => 'Já existe um registro com estes dados.',
             ], 409);

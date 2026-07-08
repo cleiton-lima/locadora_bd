@@ -12,7 +12,7 @@ class VeiculoService
     {
         return DB::select("
             SELECT id, status, finalidade, placa, grupo, quilometragem,
-                   Administrador_Funcionario_id, Filial_id, Lote_id
+                   Administrador_cadastro_id, Administrador_responsavel_id, Filial_id, Lote_id
             FROM Veiculo
             ORDER BY id
         ");
@@ -22,7 +22,7 @@ class VeiculoService
     {
         return DB::selectOne("
             SELECT id, status, finalidade, placa, grupo, quilometragem,
-                   Administrador_Funcionario_id, Filial_id, Lote_id
+                   Administrador_cadastro_id, Administrador_responsavel_id, Filial_id, Lote_id
             FROM Veiculo
             WHERE id = ?
         ", [$id]);
@@ -73,17 +73,19 @@ class VeiculoService
                 placa,
                 grupo,
                 quilometragem,
-                Administrador_Funcionario_id,
+                Administrador_cadastro_id,
+                Administrador_responsavel_id,
                 Filial_id,
                 Lote_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ", [
             $data['status'],
             $data['finalidade'],
             $data['placa'],
             $data['grupo'],
             $data['quilometragem'],
-            $data['administrador_funcionario_id'],
+            $data['administrador_cadastro_id'],
+            $data['administrador_responsavel_id'],
             $data['filial_id'],
             $data['lote_id'],
         ]);
@@ -100,7 +102,8 @@ class VeiculoService
                 placa = ?,
                 grupo = ?,
                 quilometragem = ?,
-                Administrador_Funcionario_id = ?,
+                Administrador_cadastro_id = ?,
+                Administrador_responsavel_id = ?,
                 Filial_id = ?,
                 Lote_id = ?
             WHERE id = ?
@@ -110,7 +113,8 @@ class VeiculoService
             $data['placa'],
             $data['grupo'],
             $data['quilometragem'],
-            $data['administrador_funcionario_id'],
+            $data['administrador_cadastro_id'],
+            $data['administrador_responsavel_id'],
             $data['filial_id'],
             $data['lote_id'],
             $id,

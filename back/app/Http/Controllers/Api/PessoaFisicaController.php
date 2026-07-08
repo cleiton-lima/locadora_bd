@@ -42,7 +42,13 @@ class PessoaFisicaController extends Controller
             ], 409);
         }
 
-        if ($this->service->cnhExiste($data['cnh'])) {
+        if (! $this->service->cnhCadastroExiste($data['cnh_numero'])) {
+            return response()->json([
+                'message' => 'Registro relacionado não encontrado.',
+            ], 404);
+        }
+
+        if ($this->service->cnhExiste($data['cnh_numero'])) {
             return response()->json([
                 'message' => 'Já existe um registro com estes dados.',
             ], 409);
@@ -85,7 +91,13 @@ class PessoaFisicaController extends Controller
             ], 409);
         }
 
-        if ($this->service->cnhExiste($data['cnh'], $id)) {
+        if (! $this->service->cnhCadastroExiste($data['cnh_numero'])) {
+            return response()->json([
+                'message' => 'Registro relacionado não encontrado.',
+            ], 404);
+        }
+
+        if ($this->service->cnhExiste($data['cnh_numero'], $id)) {
             return response()->json([
                 'message' => 'Já existe um registro com estes dados.',
             ], 409);

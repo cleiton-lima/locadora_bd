@@ -18,11 +18,7 @@ class UpdatePessoaFisicaRequest extends FormRequest
     {
         return [
             'cpf' => ['required', 'string', 'size:11'],
-            'cnh' => ['required', 'string', 'size:11'],
-            'estado' => ['required', 'string', 'size:2'],
-            'categoria' => ['required', 'string', 'max:3'],
-            'data_emissao' => ['required', 'date'],
-            'data_validade' => ['required', 'date', 'after_or_equal:data_emissao'],
+            'cnh_numero' => ['required', 'string', 'size:11'],
         ];
     }
 }

@@ -17,7 +17,7 @@ O banco de dados oficial se chama:
 locadora_imd
 ```
 
-A modelagem oficial foi feita no MySQL Workbench e o script SQL final cria o schema `locadora_imd`.
+A modelagem oficial foi normalizada em BCNF e o script SQL final cria o schema `locadora_imd`.
 
 O Laravel deve apenas se conectar a esse banco e executar operações com SQL puro.
 
@@ -105,7 +105,11 @@ Se estiver usando Docker, ajustar `DB_HOST`, `DB_PORT`, `DB_USERNAME` e `DB_PASS
 
 Não criar migrations Laravel para substituir a modelagem do Workbench.
 
-O script oficial do banco é o SQL exportado pelo MySQL Workbench.
+O script oficial do banco é:
+
+```text
+docs/bdnormalizado/locadora_imd-bcnf.sql
+```
 
 ---
 
@@ -160,9 +164,15 @@ Veiculo
 Servico
 Empresa
 Contrato_Frota
+CNH
 Pessoa_Fisica
 Aluguel
 Venda
+Estado
+Cidade
+Bairro
+Logradouro
+CEP
 Telefone_oficina
 Telefone_montadora
 Usuario_endereco
@@ -200,8 +210,10 @@ Atendente.Funcionario_id
 
 Lote.Gerente_Comercial_Funcionario_id
 Lote.Montadora_id
+Lote.quantidade_veiculos  -- quantidade comprada no lote
 
-Veiculo.Administrador_Funcionario_id
+Veiculo.Administrador_cadastro_id
+Veiculo.Administrador_responsavel_id
 Veiculo.Filial_id
 Veiculo.Lote_id
 
@@ -209,12 +221,36 @@ Servico.Veiculo_id
 Servico.Administrador_Funcionario_id
 Servico.Oficina_id
 
-Empresa.Cliente_id
+Empresa.Usuario_id
 Empresa.CNPJ
 
 Pessoa_Fisica.Cliente_id
 Pessoa_Fisica.CPF
-Pessoa_Fisica.CNH
+Pessoa_Fisica.CNH_numero
+
+CNH.numero
+CNH.estado
+CNH.categoria
+CNH.data_emissao
+CNH.data_validade
+
+Estado.sigla
+Estado.nome
+
+Cidade.id
+Cidade.nome
+Cidade.Estado_sigla
+
+Bairro.id
+Bairro.nome
+Bairro.Cidade_id
+
+Logradouro.id
+Logradouro.nome
+Logradouro.Bairro_id
+
+CEP.CEP
+CEP.Logradouro_id
 
 Contrato_Frota.Gerente_Comercial_id
 Contrato_Frota.Empresa_id
@@ -251,7 +287,8 @@ Exemplo de JSON recebido:
 {
   "filial_id": 1,
   "lote_id": 2,
-  "administrador_funcionario_id": 3
+  "administrador_cadastro_id": 3,
+  "administrador_responsavel_id": 3
 }
 ```
 
@@ -264,10 +301,11 @@ INSERT INTO Veiculo (
     placa,
     grupo,
     quilometragem,
-    Administrador_Funcionario_id,
+    Administrador_cadastro_id,
+    Administrador_responsavel_id,
     Filial_id,
     Lote_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 ```
 
 ---
@@ -596,7 +634,7 @@ DB::selectOne('SELECT Funcionario_id FROM Gerente_Comercial WHERE Funcionario_id
 
 DB::selectOne('SELECT Cliente_id FROM Pessoa_Fisica WHERE Cliente_id = ?', [$pessoaFisicaId]);
 
-DB::selectOne('SELECT Cliente_id FROM Empresa WHERE Cliente_id = ?', [$empresaId]);
+DB::selectOne('SELECT Usuario_id FROM Empresa WHERE Usuario_id = ?', [$empresaId]);
 
 DB::selectOne('SELECT id FROM Lote WHERE id = ?', [$loteId]);
 
@@ -618,7 +656,7 @@ Usuario.email
 Usuario.username
 Empresa.CNPJ
 Pessoa_Fisica.CPF
-Pessoa_Fisica.CNH
+Pessoa_Fisica.CNH_numero
 Veiculo.placa
 ```
 
@@ -631,9 +669,9 @@ DB::selectOne('SELECT id FROM Usuario WHERE username = ?', [$username]);
 
 DB::selectOne('SELECT Cliente_id FROM Pessoa_Fisica WHERE CPF = ?', [$cpf]);
 
-DB::selectOne('SELECT Cliente_id FROM Pessoa_Fisica WHERE CNH = ?', [$cnh]);
+DB::selectOne('SELECT Cliente_id FROM Pessoa_Fisica WHERE CNH_numero = ?', [$cnhNumero]);
 
-DB::selectOne('SELECT Cliente_id FROM Empresa WHERE CNPJ = ?', [$cnpj]);
+DB::selectOne('SELECT Usuario_id FROM Empresa WHERE CNPJ = ?', [$cnpj]);
 
 DB::selectOne('SELECT id FROM Veiculo WHERE placa = ?', [$placa]);
 ```
@@ -763,6 +801,325 @@ UPDATE Veiculo
 SET status = 'VENDIDO'
 WHERE id = ?
 ```
+
+---
+
+## Stored procedures
+
+Alguns fluxos transacionais têm uma versão em stored procedure no MySQL,
+criada por:
+
+```text
+docs/bdnormalizado/stored_procedures.sql
+```
+
+Aplicar depois do script principal:
+
+```bash
+mysql -u root -p locadora_imd < docs/bdnormalizado/stored_procedures.sql
+```
+
+Procedures:
+
+```text
+sp_criar_aluguel(
+    p_atendente_entrega_id, p_atendente_devolucao_id, p_pessoa_fisica_id,
+    p_status, p_tipo, p_data_inicial, p_data_final, p_data_final_prevista,
+    p_contrato_frota_id, p_veiculo_id,
+    OUT p_novo_id, OUT p_valor
+)
+
+sp_devolver_aluguel(
+    p_aluguel_id, p_data_final, p_atendente_devolucao_id,
+    OUT p_linhas_afetadas
+)
+
+sp_criar_venda(
+    p_valor, p_status, p_veiculo_id, p_pessoa_fisica_id,
+    p_gerente_comercial_funcionario_id,
+    OUT p_novo_id
+)
+
+sp_encerrar_contrato_frota(
+    p_contrato_id, p_data_final,
+    OUT p_veiculos_liberados
+)
+```
+
+- `sp_criar_aluguel` calcula o `valor` (grupo do veículo, escassez por
+  filial, desconto por duração) e faz `INSERT em Aluguel` + `UPDATE
+  Veiculo.status = 'ALUGADO'` numa única transação no banco.
+- `sp_devolver_aluguel` faz `UPDATE Aluguel.status = 'FINALIZADO'` +
+  `UPDATE Veiculo.status = 'DISPONIVEL'`.
+- `sp_criar_venda` faz `INSERT em Venda` + `UPDATE Veiculo.status =
+  'VENDIDO'`.
+- `sp_encerrar_contrato_frota` define `Contrato_Frota.data_final`,
+  finaliza (`status = 'FINALIZADO'`) todos os `Aluguel` `ATIVO` vinculados
+  ao contrato e devolve os respectivos `Veiculo` para `DISPONIVEL`. Retorna
+  em `p_veiculos_liberados` quantos veículos foram liberados (`-1` se o
+  contrato não existir).
+
+As validações de FK e os bloqueios de negócio (veículo `ALUGADO`, aluguel
+`ATIVO`, contrato de frota ativo, CNH vencida) continuam no
+Controller/Service antes de chamar a procedure — ela assume que os dados já
+foram validados.
+
+`AluguelService::criar()`/`devolver()`, `VendaService::criar()` e
+`ContratoFrotaService::encerrar()` decidem em runtime qual caminho usar:
+
+```php
+if (DB::getDriverName() === 'mysql') {
+    // CALL sp_..._(...)
+}
+```
+
+Isso é necessário porque os testes de feature rodam em SQLite em memória
+(`phpunit.xml`), que não suporta `CREATE PROCEDURE`/`CALL`. Em SQLite, o
+Service usa o SQL puro equivalente (o mesmo que existia antes da procedure).
+Ao adicionar uma nova stored procedure, mantenha as duas implementações
+sincronizadas ou documente a divergência.
+
+Chamando a procedure via `DB` facade:
+
+```php
+DB::statement('CALL sp_criar_aluguel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @novo_id, @valor)', [
+    $data['atendente_entrega_id'],
+    $data['atendente_devolucao_id'] ?? null,
+    $data['pessoa_fisica_id'] ?? null,
+    $data['status'],
+    $data['tipo'],
+    $data['data_inicial'],
+    $data['data_final'] ?? null,
+    $data['data_final_prevista'],
+    $data['contrato_frota_id'] ?? null,
+    $data['veiculo_id'],
+]);
+
+$id = (int) DB::selectOne('SELECT @novo_id AS id')->id;
+```
+
+---
+
+## Triggers
+
+Duas regras de integridade têm uma segunda linha de defesa como trigger no
+MySQL, criadas por:
+
+```text
+docs/bdnormalizado/triggers.sql
+```
+
+Aplicar depois do script principal:
+
+```bash
+mysql -u root -p locadora_imd < docs/bdnormalizado/triggers.sql
+```
+
+Triggers:
+
+```text
+trg_aluguel_valida_cnh          (BEFORE INSERT ON Aluguel)
+trg_venda_bloqueia_veiculo_alugado (BEFORE INSERT ON Venda)
+```
+
+- `trg_aluguel_valida_cnh` bloqueia o `INSERT` se a `Pessoa_Fisica_id`
+  informada tiver CNH com `data_validade` anterior à `data_inicial` do
+  aluguel (`SIGNAL SQLSTATE '45000'`).
+- `trg_venda_bloqueia_veiculo_alugado` bloqueia o `INSERT` em `Venda` se o
+  `Veiculo_id` estiver com `status = 'ALUGADO'`.
+
+Essas regras já são validadas em PHP **antes** do INSERT
+(`AluguelService::cnhValidaParaAluguel()`, `VendaService::veiculoDisponivelParaVenda()`),
+o que garante uma resposta HTTP 409 com mensagem amigável pela API. A
+trigger é a garantia de integridade no banco — protege mesmo contra um
+INSERT feito fora da API (SQL direto, outra aplicação). Mantenha a mensagem
+de erro da trigger e a mensagem do Service em sincronia.
+
+As triggers não têm equivalente no schema SQLite usado pelos testes
+(`tests/Feature/BcnfApiTest.php`) — SQLite não dispara `SIGNAL`. A cobertura
+de teste dessas regras vem inteiramente da validação em PHP, que roda
+igual em qualquer driver.
+
+---
+
+## Views
+
+Quatro views de relatório somente-leitura, criadas por:
+
+```text
+docs/bdnormalizado/views.sql
+```
+
+Aplicar depois do script principal:
+
+```bash
+mysql -u root -p locadora_imd < docs/bdnormalizado/views.sql
+```
+
+Views:
+
+```text
+vw_frota_disponivel      -- Veiculo DISPONIVEL + Filial
+vw_ocupacao_frota        -- % ocupação por Filial/grupo
+vw_contrato_frota_resumo -- Contrato_Frota + Empresa + veículos alugados ativos
+vw_veiculos_manutencao   -- Servico ATIVO + Veiculo + Oficina
+```
+
+Consumidas por `RelatorioService` (`SELECT * FROM vw_...`) e expostas em:
+
+```text
+GET /api/relatorios/frota-disponivel
+GET /api/relatorios/ocupacao-frota
+GET /api/relatorios/contratos-frota
+GET /api/relatorios/veiculos-manutencao
+```
+
+São views só de leitura, sem regra de negócio. Assim como as procedures e
+triggers, só existem no schema MySQL — não têm equivalente no schema
+SQLite dos testes, então esses 4 endpoints não têm teste de feature
+automatizado; foram validados manualmente contra MySQL real (ver
+histórico do projeto). Se for adicionar teste automatizado para eles no
+futuro, será necessário replicar as views (ou o `SELECT` equivalente) no
+`createSchema()` de `tests/Feature/BcnfApiTest.php`.
+
+---
+
+## Autenticação
+
+A disciplina proíbe ORM, o que elimina Sanctum/Passport (usam Eloquent
+internamente). A autenticação é JWT via `firebase/php-jwt` (só assina/valida
+token, sem tocar banco) + SQL puro via `DB` facade para tudo que persiste.
+
+### Schema
+
+Duas tabelas aditivas em `docs/bdnormalizado/auth-schema.sql` (aplicar depois
+do script principal: `mysql -u root -p locadora_imd <
+docs/bdnormalizado/auth-schema.sql`):
+
+```text
+Usuario_google (Usuario_id PK/FK -> Usuario.id, google_id UNIQUE)
+Refresh_Token  (id PK, Usuario_id FK, token_hash UNIQUE, expires_at, revoked_at, created_at)
+```
+
+Nenhuma tabela existente foi alterada. `Refresh_Token.token_hash` guarda só o
+SHA-256 do refresh token — nunca o valor em texto puro. Prova de BCNF em
+`docs/bdnormalizado/script-prolog.pl` (ver `NORMALIZACAO.md`, seção 5).
+
+### Roles: derivadas, não armazenadas
+
+Não existe coluna `role`. `RoleService::rolesDoUsuario()` deriva a(s) role(s)
+de um `Usuario_id` consultando as tabelas de ator que já existem:
+
+```text
+Funcionario -> Administrador/Atendente/Gerente_Comercial  =>  ADMINISTRADOR / ATENDENTE / GERENTE_COMERCIAL
+Pessoa_Fisica                                              =>  CLIENTE_PF
+Empresa                                                     =>  EMPRESA
+```
+
+Constantes em `App\Support\Roles`. Um `Usuario` recém-criado (cadastro
+público ou login Google) não tem role nenhuma até completar o cadastro em
+`Pessoa_Fisica`/`Empresa` (ou até um Administrador vinculá-lo a
+`Funcionario`) — `roles: []` no token é esperado e válido.
+
+### Fluxo JWT
+
+```text
+POST /api/auth/login    {login, senha} -> {access_token, refresh_token, expires_in, usuario, roles}
+POST /api/auth/refresh  {refresh_token} -> novo par (rotação: o antigo é revogado)
+POST /api/auth/logout   {refresh_token} -> revoga
+GET  /api/auth/me       (jwt.auth)      -> usuario + roles do token
+```
+
+- Access token: JWT assinado (`HS256`, segredo em `JWT_SECRET`), payload
+  `{sub, roles, iat, exp}`, TTL em `JWT_TTL` (segundos).
+- Refresh token: opaco (`bin2hex(random_bytes(32))`), TTL em
+  `JWT_REFRESH_TTL`. A cada `refresh`, o token antigo é revogado e um par
+  novo é emitido (rotação) — reuso de um token já revogado retorna 401.
+- `AuthService` (login/refresh/logout/Google) e `RoleService` (derivar
+  roles) ficam em `app/Services/`, mesmo padrão dos outros Services.
+
+### Middlewares
+
+```text
+jwt.auth        App\Http\Middleware\JwtAuthenticate  - exige Authorization: Bearer <token> válido
+role:X,Y,...    App\Http\Middleware\EnsureRole        - exige que o token tenha pelo menos uma das roles
+```
+
+Registrados em `bootstrap/app.php` (`$middleware->alias([...])`). Uso em
+`routes/api.php`:
+
+```php
+Route::middleware('jwt.auth')->group(function () {
+    Route::middleware('role:'.Roles::ADMINISTRADOR)->group(function () {
+        Route::apiResource('veiculos', VeiculoController::class)->except(['index', 'show']);
+    });
+
+    Route::apiResource('veiculos', VeiculoController::class)->only(['index', 'show']);
+});
+```
+
+Mapeamento de role por recurso (ver `routes/api.php` para a lista completa):
+
+```text
+ADMINISTRADOR                    -> escrita em filiais/montadoras/oficinas/funcionarios/
+                                     administradores/atendentes/gerentes-comerciais/lotes/
+                                     veiculos/servicos
+GERENTE_COMERCIAL, ADMINISTRADOR -> escrita em contratos-frota/vendas
+ATENDENTE, ADMINISTRADOR         -> escrita em alugueis
+qualquer autenticado             -> leitura (index/show) de tudo acima, e
+                                     leitura+escrita de usuarios (exceto o
+                                     cadastro), cnhs, pessoas-fisicas, empresas,
+                                     endereços/telefones, estados/cidades/
+                                     bairros/logradouros/ceps, relatorios/*
+público (sem jwt.auth)           -> POST /api/usuarios (cadastro), auth/*
+```
+
+`POST /api/usuarios` fica fora do `jwt.auth` de propósito: é o único jeito de
+um cliente novo conseguir uma conta antes de ter qualquer token.
+
+### Login com Google
+
+`composer require laravel/socialite` — usado só pela camada OAuth (retorna
+um DTO com `id`/`email`/`name`; nunca chamamos `->save()` nem qualquer coisa
+ligada a Eloquent). Credenciais em `config/services.php` -> `google`, lidas
+de `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`.
+
+```text
+GET /api/auth/google/redirect  -> redireciona para o consentimento do Google
+GET /api/auth/google/callback  -> AuthService::loginOuCriarComGoogle(), depois
+                                   redireciona para
+                                   {FRONTEND_URL}/auth/callback?access_token=...&refresh_token=...
+```
+
+`loginOuCriarComGoogle()` (SQL puro): busca por `Usuario_google.google_id`;
+se não achar, tenta linkar por `Usuario.email`; se não achar, cria
+`Usuario` novo (senha aleatória inutilizável — login por senha continua
+impossível para essas contas) + `Usuario_google`. Conta criada via Google não
+tem `Funcionario`/`Pessoa_Fisica`/`Empresa` ainda, então nasce sem role
+(mesmo caso do cadastro público) — o front deve tratar `roles: []`
+direcionando para completar o cadastro de `Pessoa_Fisica`.
+
+### CORS
+
+`config/cors.php`: `allowed_origins` = `FRONTEND_URL` (não `*`),
+`supports_credentials = false` (tudo via `Authorization: Bearer`, sem
+cookie cross-domain).
+
+### Variáveis de ambiente
+
+```env
+JWT_SECRET=                # openssl rand -base64 32 — nunca reaproveitar APP_KEY
+JWT_TTL=3600
+JWT_REFRESH_TTL=2592000
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://127.0.0.1:8000/api/auth/google/callback
+FRONTEND_URL=http://localhost:5173
+```
+
+### Deploy
+
+Runbook completo (Railway, API + MySQL) em `docs/deploy-railway.md`.
 
 ---
 
@@ -1010,7 +1367,7 @@ Regras:
 - Gerente_Comercial_Funcionario_id deve existir em Gerente_Comercial.Funcionario_id;
 - Montadora_id deve existir em Montadora.id;
 - preco_total deve ser positivo;
-- quantidade_veiculos deve ser maior que zero.
+- quantidade_veiculos deve ser maior que zero e representa a quantidade comprada no lote.
 ```
 
 ### Veiculo
@@ -1030,7 +1387,8 @@ finalidade
 placa
 grupo
 quilometragem
-Administrador_Funcionario_id
+Administrador_cadastro_id
+Administrador_responsavel_id
 Filial_id
 Lote_id
 ```
@@ -1043,7 +1401,10 @@ Regras:
 - finalidade obrigatória;
 - grupo obrigatório;
 - quilometragem não pode ser negativa;
-- Administrador_Funcionario_id deve existir em Administrador.Funcionario_id;
+- Administrador_cadastro_id deve existir em Administrador.Funcionario_id;
+- Administrador_responsavel_id deve existir em Administrador.Funcionario_id quando informado;
+- se status for diferente de VENDIDO e Administrador_responsavel_id vier vazio, usar Administrador_cadastro_id;
+- se status for VENDIDO, Administrador_responsavel_id pode ser nulo;
 - Filial_id deve existir em Filial.id;
 - Lote_id deve existir em Lote.id.
 ```
@@ -1103,10 +1464,15 @@ Regras:
 
 ```text
 - Gerente_Comercial_id deve existir em Gerente_Comercial.Funcionario_id;
-- Empresa_id deve existir em Empresa.Cliente_id;
+- Empresa_id deve existir em Empresa.Usuario_id;
 - data_final não pode ser menor que data_inicio;
 - quantidade_veiculos deve ser maior que zero.
 ```
+
+Encerramento (`PATCH /api/contratos-frota/{id}/encerrar`, ver "Stored
+procedures"): define `data_final`, finaliza os `Aluguel` `ATIVO`
+vinculados ao contrato e devolve os `Veiculo` correspondentes para
+`DISPONIVEL`.
 
 ### Aluguel
 
@@ -1145,6 +1511,9 @@ Regras:
 - valor deve ser positivo;
 - data_final_prevista não pode ser menor que data_inicial;
 - data_final não pode ser menor que data_inicial;
+- se Pessoa_Fisica_id informado, a CNH vinculada não pode estar vencida na
+  data_inicial (ver "Triggers": trg_aluguel_valida_cnh +
+  AluguelService::cnhValidaParaAluguel());
 - ao criar aluguel, atualizar Veiculo.status para 'ALUGADO'.
 ```
 
@@ -1174,6 +1543,8 @@ Regras:
 - Pessoa_Fisica_id deve existir em Pessoa_Fisica.Cliente_id;
 - Gerente_Comercial_Funcionario_id deve existir em Gerente_Comercial.Funcionario_id;
 - valor deve ser positivo;
+- Veiculo não pode estar com status 'ALUGADO' (ver "Triggers":
+  trg_venda_bloqueia_veiculo_alugado + VendaService::veiculoDisponivelParaVenda());
 - ao criar venda, atualizar Veiculo.status para 'VENDIDO'.
 ```
 

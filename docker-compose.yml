@@ -1,0 +1,45 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: locadora_imd
+      MYSQL_USER: locadora
+      MYSQL_PASSWORD: locadora
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docs/bdnormalizado/locadora_imd-bcnf.sql:/docker-entrypoint-initdb.d/01-locadora_imd-bcnf.sql:ro
+      - ./docs/bdnormalizado/auth-schema.sql:/docker-entrypoint-initdb.d/02-auth-schema.sql:ro
+      - ./docs/bdnormalizado/stored_procedures.sql:/docker-entrypoint-initdb.d/03-stored-procedures.sql:ro
+      - ./docs/bdnormalizado/triggers.sql:/docker-entrypoint-initdb.d/04-triggers.sql:ro
+      - ./docs/bdnormalizado/views.sql:/docker-entrypoint-initdb.d/05-views.sql:ro
+      - ./docs/bdnormalizado/seed-rn.sql:/docker-entrypoint-initdb.d/06-seed-rn.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./back
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - ./back/docker.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./back:/var/www/html
+      - ./back/docker.env:/var/www/html/.env:ro
+      - /var/www/html/vendor
+    command: >
+      sh -c "composer install --no-interaction &&
+             php artisan config:clear &&
+             php artisan serve --host=0.0.0.0 --port=8000"
+
+volumes:
+  mysql_data:

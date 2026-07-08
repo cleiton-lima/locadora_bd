@@ -47,8 +47,26 @@ class VendaService
         ", [$funcionarioId]) !== null;
     }
 
+    /**
+     * Espelha a trigger trg_venda_bloqueia_veiculo_alugado
+     * (docs/bdnormalizado/triggers.sql): garante uma mensagem 409 amigável
+     * na API. A trigger continua sendo a garantia real no banco.
+     */
+    public function veiculoDisponivelParaVenda(int $veiculoId): bool
+    {
+        $veiculo = DB::selectOne("
+            SELECT status FROM Veiculo WHERE id = ?
+        ", [$veiculoId]);
+
+        return $veiculo !== null && $veiculo->status !== 'ALUGADO';
+    }
+
     public function criar(array $data): int
     {
+        if (DB::getDriverName() === 'mysql') {
+            return $this->criarViaProcedure($data);
+        }
+
         return DB::transaction(function () use ($data) {
             DB::insert("
                 INSERT INTO Venda (
@@ -70,12 +88,31 @@ class VendaService
 
             DB::update("
                 UPDATE Veiculo
-                SET status = 'VENDIDO'
+                SET status = 'VENDIDO',
+                    Administrador_responsavel_id = NULL
                 WHERE id = ?
             ", [$data['veiculo_id']]);
 
             return $id;
         });
+    }
+
+    /**
+     * Caminho usado em produção (MySQL): delega a escrita atômica em
+     * Venda + Veiculo para sp_criar_venda
+     * (docs/bdnormalizado/stored_procedures.sql).
+     */
+    private function criarViaProcedure(array $data): int
+    {
+        DB::statement('CALL sp_criar_venda(?, ?, ?, ?, ?, @novo_id)', [
+            $data['valor'],
+            $data['status'],
+            $data['veiculo_id'],
+            $data['pessoa_fisica_id'],
+            $data['gerente_comercial_funcionario_id'],
+        ]);
+
+        return (int) DB::selectOne('SELECT @novo_id AS id')->id;
     }
 
     public function atualizar(int $id, array $data): int
