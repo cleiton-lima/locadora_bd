@@ -42,6 +42,12 @@ class VendaController extends Controller
             ], 404);
         }
 
+        if (! $this->service->veiculoDisponivelParaVenda($data['veiculo_id'])) {
+            return response()->json([
+                'message' => 'Veículo indisponível para venda: está alugado.',
+            ], 409);
+        }
+
         $id = $this->service->criar($data);
 
         return response()->json([

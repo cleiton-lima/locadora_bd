@@ -23,6 +23,9 @@ O script SQL oficial do banco fica em:
 docs/bdnormalizado/locadora_imd-bcnf.sql
 ```
 
+Este documento cobre o setup **local**. Para hospedar a API + banco na web
+(Railway), ver `docs/deploy-railway.md`.
+
 ---
 
 # 1. Requisitos do projeto
@@ -313,6 +316,16 @@ mysql -u root -p < docs/bdnormalizado/locadora_imd-bcnf.sql
 
 Digite a senha do MySQL.
 
+Em seguida, aplique as stored procedures, triggers e views (usadas pelos
+fluxos de `Aluguel`, `Venda` e `Contrato_Frota`, e pelos relatórios):
+
+```bash
+mysql -u root -p locadora_imd < docs/bdnormalizado/auth-schema.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/stored_procedures.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/triggers.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/views.sql
+```
+
 Depois confira:
 
 ```bash
@@ -416,6 +429,25 @@ CACHE_STORE=file
 
 Essas configurações são importantes porque o banco oficial da disciplina não possui tabelas internas do Laravel como `cache`, `sessions` e `jobs`.
 
+Configure também a autenticação (JWT + login Google — ver `back/CLAUDE.md`,
+seção "Autenticação", para detalhes):
+
+```env
+JWT_SECRET=            # gerar com: openssl rand -base64 32
+JWT_TTL=3600
+JWT_REFRESH_TTL=2592000
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://127.0.0.1:8000/api/auth/google/callback
+
+FRONTEND_URL=http://localhost:5173
+```
+
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` só são necessários se for testar o
+login com Google localmente — o login por senha (`POST /api/auth/login`)
+funciona sem eles.
+
 ---
 
 # 11. Limpar cache do Laravel
@@ -492,24 +524,52 @@ api/vendas
 
 # 14. Teste rápido da API
 
-Com o servidor rodando, teste criar uma filial:
+Quase todos os endpoints exigem `Authorization: Bearer <token>` (ver
+`back/CLAUDE.md`, seção "Autenticação"). Primeiro cadastre um usuário — este
+endpoint é o único aberto, propositalmente:
 
 ```bash
+curl -X POST http://127.0.0.1:8000/api/usuarios \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin1","nome":"Admin Um","email":"admin1@test.com","senha":"senha123"}'
+```
+
+Faça login para obter o token:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"login":"admin1","senha":"senha123"}'
+```
+
+Um usuário recém-cadastrado ainda não tem nenhuma role (`roles: []`) — para
+testar rotas que exigem `ADMINISTRADOR`/`ATENDENTE`/`GERENTE_COMERCIAL`,
+vincule-o manualmente via SQL a `Funcionario` + `Administrador` (ou
+`Atendente`/`Gerente_Comercial`), igual ao "bootstrap do primeiro admin"
+descrito em `docs/deploy-railway.md`.
+
+Guarde o `access_token` da resposta do login numa variável e use nas
+próximas chamadas:
+
+```bash
+TOKEN="cole_o_access_token_aqui"
+
 curl -X POST http://127.0.0.1:8000/api/filiais \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"nome":"Filial Centro"}'
 ```
 
 Liste as filiais:
 
 ```bash
-curl http://127.0.0.1:8000/api/filiais
+curl http://127.0.0.1:8000/api/filiais -H "Authorization: Bearer $TOKEN"
 ```
 
 Busque uma filial por ID:
 
 ```bash
-curl http://127.0.0.1:8000/api/filiais/1
+curl http://127.0.0.1:8000/api/filiais/1 -H "Authorization: Bearer $TOKEN"
 ```
 
 Atualize a filial:
@@ -517,13 +577,14 @@ Atualize a filial:
 ```bash
 curl -X PUT http://127.0.0.1:8000/api/filiais/1 \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"nome":"Filial Centro Atualizada"}'
 ```
 
 Remova a filial:
 
 ```bash
-curl -X DELETE http://127.0.0.1:8000/api/filiais/1
+curl -X DELETE http://127.0.0.1:8000/api/filiais/1 -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
@@ -584,6 +645,10 @@ Se precisar recriar o banco:
 
 ```bash
 mysql -u root -p < docs/bdnormalizado/locadora_imd-bcnf.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/auth-schema.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/stored_procedures.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/triggers.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/views.sql
 ```
 
 ---
@@ -736,6 +801,10 @@ Rode na raiz do projeto:
 
 ```bash
 mysql -u root -p < docs/bdnormalizado/locadora_imd-bcnf.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/auth-schema.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/stored_procedures.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/triggers.sql
+mysql -u root -p locadora_imd < docs/bdnormalizado/views.sql
 ```
 
 ---

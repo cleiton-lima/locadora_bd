@@ -59,6 +59,30 @@ class AluguelService
         ", [$id]) !== null;
     }
 
+    /**
+     * Espelha a trigger trg_aluguel_valida_cnh
+     * (docs/bdnormalizado/triggers.sql): garante uma mensagem 409 amigável
+     * na API. A trigger continua sendo a garantia real no banco.
+     */
+    public function cnhValidaParaAluguel(int $pessoaFisicaId, string $dataInicial): bool
+    {
+        $cnh = DB::selectOne("
+            SELECT c.data_validade
+            FROM Pessoa_Fisica pf
+            JOIN CNH c ON c.numero = pf.CNH_numero
+            WHERE pf.Cliente_id = ?
+        ", [$pessoaFisicaId]);
+
+        if (! $cnh) {
+            return false;
+        }
+
+        $validade = new DateTimeImmutable($cnh->data_validade);
+        $inicio = new DateTimeImmutable($dataInicial);
+
+        return $validade >= $inicio;
+    }
+
     public function bloqueioVeiculoParaAluguel(int $veiculoId, bool $paraPessoaFisica): ?string
     {
         $veiculo = DB::selectOne("
@@ -107,6 +131,10 @@ class AluguelService
 
     public function criar(array $data): int
     {
+        if (DB::getDriverName() === 'mysql') {
+            return $this->criarViaProcedure($data);
+        }
+
         return DB::transaction(function () use ($data) {
             $veiculo = $this->buscarVeiculoParaPrecificacao((int) $data['veiculo_id']);
             $valor = $this->calcularValor($data, $veiculo);
@@ -151,6 +179,31 @@ class AluguelService
         });
     }
 
+    /**
+     * Caminho usado em produção (MySQL): delega o cálculo do valor e a
+     * escrita atômica em Aluguel + Veiculo para sp_criar_aluguel
+     * (docs/bdnormalizado/stored_procedures.sql). A procedure assume que
+     * atendente/veículo/pessoa física/contrato de frota já foram validados
+     * pelo Controller.
+     */
+    private function criarViaProcedure(array $data): int
+    {
+        DB::statement("CALL sp_criar_aluguel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @novo_id, @valor)", [
+            $data['atendente_entrega_id'],
+            $data['atendente_devolucao_id'] ?? null,
+            $data['pessoa_fisica_id'] ?? null,
+            $data['status'],
+            $data['tipo'],
+            $data['data_inicial'],
+            $data['data_final'] ?? null,
+            $data['data_final_prevista'],
+            $data['contrato_frota_id'] ?? null,
+            $data['veiculo_id'],
+        ]);
+
+        return (int) DB::selectOne('SELECT @novo_id AS id')->id;
+    }
+
     public function atualizar(int $id, array $data): int
     {
         return DB::update("
@@ -193,6 +246,10 @@ class AluguelService
 
     public function devolver(int $id, array $data): int
     {
+        if (DB::getDriverName() === 'mysql') {
+            return $this->devolverViaProcedure($id, $data);
+        }
+
         return DB::transaction(function () use ($id, $data) {
             $aluguel = DB::selectOne("
                 SELECT id, Veiculo_id
@@ -224,6 +281,21 @@ class AluguelService
 
             return 1;
         });
+    }
+
+    /**
+     * Caminho usado em produção (MySQL): delega a devolução para
+     * sp_devolver_aluguel (docs/bdnormalizado/stored_procedures.sql).
+     */
+    private function devolverViaProcedure(int $id, array $data): int
+    {
+        DB::statement('CALL sp_devolver_aluguel(?, ?, ?, @linhas)', [
+            $id,
+            $data['data_final'],
+            $data['atendente_devolucao_id'],
+        ]);
+
+        return (int) DB::selectOne('SELECT @linhas AS linhas')->linhas;
     }
 
     private function buscarVeiculoParaPrecificacao(int $veiculoId): object

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ContratoFrota\EncerrarContratoFrotaRequest;
 use App\Http\Requests\ContratoFrota\StoreContratoFrotaRequest;
 use App\Http\Requests\ContratoFrota\UpdateContratoFrotaRequest;
 use App\Services\ContratoFrotaService;
@@ -97,5 +98,22 @@ class ContratoFrotaController extends Controller
         $this->service->remover($id);
 
         return response()->json(null, 204);
+    }
+
+    public function encerrar(EncerrarContratoFrotaRequest $request, int $id)
+    {
+        if (! $this->service->buscarPorId($id)) {
+            return response()->json([
+                'message' => 'Registro não encontrado.',
+            ], 404);
+        }
+
+        $data = $request->validated();
+        $veiculosLiberados = $this->service->encerrar($id, $data);
+
+        return response()->json([
+            'message' => 'Registro atualizado com sucesso.',
+            'veiculos_liberados' => $veiculosLiberados,
+        ]);
     }
 }

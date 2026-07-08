@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Support\Roles;
+use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Laravel\Socialite\Facades\Socialite;
 use Tests\TestCase;
 
 class BcnfApiTest extends TestCase
@@ -20,7 +24,7 @@ class BcnfApiTest extends TestCase
         $response = $this->postJson('/api/empresas', [
             'usuario_id' => 1,
             'cnpj' => '12345678000199',
-        ]);
+        ], $this->authHeaders([]));
 
         $response->assertCreated()
             ->assertJsonPath('id', 1);
@@ -30,7 +34,7 @@ class BcnfApiTest extends TestCase
             'CNPJ' => '12345678000199',
         ]);
 
-        $this->getJson('/api/empresas/1')
+        $this->getJson('/api/empresas/1', $this->authHeaders([]))
             ->assertOk()
             ->assertJsonPath('Usuario_id', 1);
     }
@@ -45,8 +49,8 @@ class BcnfApiTest extends TestCase
             'data_validade' => '2030-01-01',
         ];
 
-        $this->postJson('/api/cnhs', $payload)->assertCreated();
-        $this->postJson('/api/cnhs', $payload)->assertStatus(409);
+        $this->postJson('/api/cnhs', $payload, $this->authHeaders([]))->assertCreated();
+        $this->postJson('/api/cnhs', $payload, $this->authHeaders([]))->assertStatus(409);
     }
 
     public function test_pessoa_fisica_uses_existing_cnh_numero(): void
@@ -57,7 +61,7 @@ class BcnfApiTest extends TestCase
             'cliente_id' => 1,
             'cpf' => '12345678901',
             'cnh_numero' => '00012345678',
-        ]);
+        ], $this->authHeaders([]));
 
         $response->assertCreated()
             ->assertJsonPath('id', 1);
@@ -82,7 +86,7 @@ class BcnfApiTest extends TestCase
             'data_inicio' => '2026-01-01 08:00:00',
             'data_final' => '2026-12-31 18:00:00',
             'quantidade_veiculos' => 3,
-        ]);
+        ], $this->authHeaders([Roles::GERENTE_COMERCIAL]));
 
         $response->assertCreated();
     }
@@ -106,7 +110,7 @@ class BcnfApiTest extends TestCase
             'Veiculo_id' => 100,
         ]);
 
-        $this->postJson('/api/alugueis', $this->rentalPayload())
+        $this->postJson('/api/alugueis', $this->rentalPayload(), $this->authHeaders([Roles::ATENDENTE]))
             ->assertStatus(409);
     }
 
@@ -115,7 +119,7 @@ class BcnfApiTest extends TestCase
         $this->insertPessoaFisica();
         $this->insertVeiculo(status: 'ALUGADO');
 
-        $this->postJson('/api/alugueis', $this->rentalPayload())
+        $this->postJson('/api/alugueis', $this->rentalPayload(), $this->authHeaders([Roles::ATENDENTE]))
             ->assertStatus(409);
     }
 
@@ -146,7 +150,7 @@ class BcnfApiTest extends TestCase
             'Veiculo_id' => 100,
         ]);
 
-        $this->postJson('/api/alugueis', $this->rentalPayload())
+        $this->postJson('/api/alugueis', $this->rentalPayload(), $this->authHeaders([Roles::ATENDENTE]))
             ->assertStatus(409);
     }
 
@@ -157,7 +161,7 @@ class BcnfApiTest extends TestCase
 
         $response = $this->postJson('/api/alugueis', $this->rentalPayload([
             'valor' => 1,
-        ]));
+        ]), $this->authHeaders([Roles::ATENDENTE]));
 
         $response->assertCreated();
 
@@ -191,7 +195,7 @@ class BcnfApiTest extends TestCase
         $this->patchJson('/api/alugueis/99/devolver', [
             'atendente_devolucao_id' => 21,
             'data_final' => '2026-01-01 11:30:00',
-        ])->assertOk();
+        ], $this->authHeaders([Roles::ATENDENTE]))->assertOk();
 
         $this->assertDatabaseHas('Aluguel', [
             'id' => 99,
@@ -201,6 +205,115 @@ class BcnfApiTest extends TestCase
         $this->assertDatabaseHas('Veiculo', [
             'id' => 100,
             'status' => 'DISPONIVEL',
+        ]);
+    }
+
+    public function test_aluguel_blocks_when_cnh_is_expired(): void
+    {
+        DB::table('CNH')->insert([
+            'numero' => '00099999999',
+            'estado' => 'RN',
+            'categoria' => 'B',
+            'data_emissao' => '2010-01-01',
+            'data_validade' => '2020-01-01',
+        ]);
+        DB::table('Pessoa_Fisica')->insert([
+            'Cliente_id' => 2,
+            'CPF' => '98765432100',
+            'CNH_numero' => '00099999999',
+        ]);
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $response = $this->postJson('/api/alugueis', $this->rentalPayload([
+            'pessoa_fisica_id' => 2,
+        ]), $this->authHeaders([Roles::ATENDENTE]));
+
+        $response->assertStatus(409)
+            ->assertJsonPath('message', 'CNH vencida para a data de retirada.');
+    }
+
+    public function test_venda_blocks_when_vehicle_is_alugado(): void
+    {
+        $this->insertPessoaFisica();
+        $this->insertVeiculo(status: 'ALUGADO');
+
+        $response = $this->postJson('/api/vendas', [
+            'valor' => 45000,
+            'status' => 'CONCLUIDA',
+            'veiculo_id' => 100,
+            'pessoa_fisica_id' => 1,
+            'gerente_comercial_funcionario_id' => 10,
+        ], $this->authHeaders([Roles::GERENTE_COMERCIAL]));
+
+        $response->assertStatus(409)
+            ->assertJsonPath('message', 'Veículo indisponível para venda: está alugado.');
+    }
+
+    public function test_venda_creates_and_marks_vehicle_as_vendido(): void
+    {
+        $this->insertPessoaFisica();
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $response = $this->postJson('/api/vendas', [
+            'valor' => 45000,
+            'status' => 'CONCLUIDA',
+            'veiculo_id' => 100,
+            'pessoa_fisica_id' => 1,
+            'gerente_comercial_funcionario_id' => 10,
+        ], $this->authHeaders([Roles::GERENTE_COMERCIAL]));
+
+        $response->assertCreated();
+
+        $this->assertDatabaseHas('Veiculo', [
+            'id' => 100,
+            'status' => 'VENDIDO',
+        ]);
+    }
+
+    public function test_encerrar_contrato_frota_finalizes_rentals_and_frees_vehicles(): void
+    {
+        $this->insertVeiculo(status: 'ALUGADO');
+        DB::table('Contrato_Frota')->insert([
+            'id' => 70,
+            'Gerente_Comercial_id' => 10,
+            'Empresa_id' => 1,
+            'data_inicio' => '2026-01-01 08:00:00',
+            'data_final' => '2026-12-31 18:00:00',
+            'quantidade_veiculos' => 1,
+        ]);
+        DB::table('Aluguel')->insert([
+            'id' => 99,
+            'Atendente_entrega_id' => 20,
+            'Atendente_devolucao_id' => null,
+            'Pessoa_Fisica_id' => null,
+            'status' => 'ATIVO',
+            'valor' => 500,
+            'tipo' => 'LONGA_DURACAO',
+            'data_inicial' => '2026-01-01 08:00:00',
+            'data_final' => null,
+            'data_final_prevista' => '2026-12-31 18:00:00',
+            'Contrato_frota_id' => 70,
+            'Veiculo_id' => 100,
+        ]);
+
+        $response = $this->patchJson('/api/contratos-frota/70/encerrar', [
+            'data_final' => '2026-06-15 10:00:00',
+        ], $this->authHeaders([Roles::GERENTE_COMERCIAL]));
+
+        $response->assertOk()->assertJsonPath('veiculos_liberados', 1);
+
+        $this->assertDatabaseHas('Aluguel', [
+            'id' => 99,
+            'status' => 'FINALIZADO',
+            'data_final' => '2026-06-15 10:00:00',
+        ]);
+        $this->assertDatabaseHas('Veiculo', [
+            'id' => 100,
+            'status' => 'DISPONIVEL',
+        ]);
+        $this->assertDatabaseHas('Contrato_Frota', [
+            'id' => 70,
+            'data_final' => '2026-06-15 10:00:00',
         ]);
     }
 
@@ -214,19 +327,133 @@ class BcnfApiTest extends TestCase
             'complemento' => null,
             'referencia' => null,
             'cep' => '59000000',
-        ])->assertCreated();
+        ], $this->authHeaders([]))->assertCreated();
 
         $this->postJson('/api/usuarios-enderecos', [
             'usuario_id' => 2,
             'numero' => '200',
             'cep' => '59000000',
             'logradouro' => 'Rua antiga',
-        ])->assertUnprocessable();
+        ], $this->authHeaders([]))->assertUnprocessable();
+    }
+
+    public function test_login_with_valid_credentials_returns_tokens(): void
+    {
+        $this->insertUsuarioComSenha(500, 'clientept', 'cliente@example.com', 'segredo123');
+
+        $this->postJson('/api/auth/login', [
+            'login' => 'clientept',
+            'senha' => 'segredo123',
+        ])->assertOk()->assertJsonStructure(['access_token', 'refresh_token', 'expires_in', 'usuario', 'roles']);
+    }
+
+    public function test_login_with_invalid_credentials_returns_401(): void
+    {
+        $this->insertUsuarioComSenha(500, 'clientept', 'cliente@example.com', 'segredo123');
+
+        $this->postJson('/api/auth/login', [
+            'login' => 'clientept',
+            'senha' => 'errada',
+        ])->assertStatus(401);
+    }
+
+    public function test_me_requires_valid_token_and_returns_roles(): void
+    {
+        $this->getJson('/api/auth/me')->assertStatus(401);
+
+        $this->insertPessoaFisica();
+
+        $this->getJson('/api/auth/me', $this->authHeaders([Roles::CLIENTE_PF], 1))
+            ->assertOk()
+            ->assertJsonPath('roles.0', Roles::CLIENTE_PF)
+            ->assertJsonPath('usuario.id', 1);
+    }
+
+    public function test_refresh_rotates_token_and_revokes_previous(): void
+    {
+        $this->insertUsuarioComSenha(500, 'clientept', 'cliente@example.com', 'segredo123');
+        $login = $this->postJson('/api/auth/login', ['login' => 'clientept', 'senha' => 'segredo123']);
+        $refreshToken = $login->json('refresh_token');
+
+        $renovado = $this->postJson('/api/auth/refresh', ['refresh_token' => $refreshToken]);
+        $renovado->assertOk()->assertJsonStructure(['access_token', 'refresh_token', 'expires_in']);
+        $this->assertNotSame($refreshToken, $renovado->json('refresh_token'));
+
+        $this->postJson('/api/auth/refresh', ['refresh_token' => $refreshToken])->assertStatus(401);
+    }
+
+    public function test_logout_revokes_refresh_token(): void
+    {
+        $this->insertUsuarioComSenha(500, 'clientept', 'cliente@example.com', 'segredo123');
+        $login = $this->postJson('/api/auth/login', ['login' => 'clientept', 'senha' => 'segredo123']);
+        $refreshToken = $login->json('refresh_token');
+
+        $this->postJson('/api/auth/logout', ['refresh_token' => $refreshToken])->assertOk();
+        $this->postJson('/api/auth/refresh', ['refresh_token' => $refreshToken])->assertStatus(401);
+    }
+
+    public function test_role_middleware_blocks_wrong_profile(): void
+    {
+        $this->insertPessoaFisica();
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $this->postJson('/api/alugueis', $this->rentalPayload(), $this->authHeaders([Roles::CLIENTE_PF]))
+            ->assertStatus(403);
+    }
+
+    public function test_google_callback_creates_new_usuario_and_returns_tokens(): void
+    {
+        $googleUser = new class
+        {
+            public function getId(): string
+            {
+                return 'google-123';
+            }
+
+            public function getEmail(): string
+            {
+                return 'novo@gmail.com';
+            }
+
+            public function getName(): string
+            {
+                return 'Novo Usuario';
+            }
+        };
+
+        Socialite::shouldReceive('driver->stateless->user')->andReturn($googleUser);
+
+        $response = $this->get('/api/auth/google/callback');
+
+        $response->assertRedirect();
+        $this->assertStringContainsString('access_token=', (string) $response->headers->get('Location'));
+
+        $this->assertDatabaseHas('Usuario', ['email' => 'novo@gmail.com']);
+        $usuario = DB::table('Usuario')->where('email', 'novo@gmail.com')->first();
+        $this->assertDatabaseHas('Usuario_google', [
+            'Usuario_id' => $usuario->id,
+            'google_id' => 'google-123',
+        ]);
+    }
+
+    private function insertUsuarioComSenha(int $id, string $username, string $email, string $senha): void
+    {
+        DB::table('Usuario')->insert([
+            'id' => $id,
+            'username' => $username,
+            'nome' => 'Usuario Teste',
+            'email' => $email,
+            'ultimo_acesso' => null,
+            'data_cadastro' => '2026-01-01 00:00:00',
+            'ativo' => 1,
+            'senha_hash' => Hash::make($senha),
+        ]);
     }
 
     private function createSchema(): void
     {
         foreach ([
+            'Refresh_Token', 'Usuario_google',
             'Filial_telefone', 'Filial_endereco', 'Montadora_endereco', 'Oficina_endereco',
             'Usuario_endereco', 'CEP', 'Logradouro', 'Bairro', 'Cidade', 'Usuario_telefone',
             'Telefone_montadora', 'Telefone_oficina', 'Venda', 'Aluguel', 'Atendente',
@@ -238,6 +465,8 @@ class BcnfApiTest extends TestCase
         }
 
         DB::statement('CREATE TABLE Usuario (id INTEGER PRIMARY KEY, username TEXT UNIQUE, nome TEXT, email TEXT UNIQUE, ultimo_acesso TEXT NULL, data_cadastro TEXT, ativo INTEGER, senha_hash TEXT)');
+        DB::statement('CREATE TABLE Usuario_google (Usuario_id INTEGER PRIMARY KEY, google_id TEXT UNIQUE)');
+        DB::statement('CREATE TABLE Refresh_Token (id INTEGER PRIMARY KEY AUTOINCREMENT, Usuario_id INTEGER, token_hash TEXT UNIQUE, expires_at TEXT, revoked_at TEXT NULL, created_at TEXT)');
         DB::statement('CREATE TABLE Filial (id INTEGER PRIMARY KEY, nome TEXT)');
         DB::statement('CREATE TABLE Oficina (id INTEGER PRIMARY KEY, nome TEXT)');
         DB::statement('CREATE TABLE Montadora (id INTEGER PRIMARY KEY, nome TEXT)');
@@ -353,5 +582,21 @@ class BcnfApiTest extends TestCase
             'data_final_prevista' => '2026-01-01 12:00:00',
             'veiculo_id' => 100,
         ], $overrides);
+    }
+
+    /**
+     * @param  list<string>  $roles
+     * @return array<string, string>
+     */
+    private function authHeaders(array $roles, int $usuarioId = 999): array
+    {
+        $token = JWT::encode([
+            'sub' => $usuarioId,
+            'roles' => $roles,
+            'iat' => time(),
+            'exp' => time() + 3600,
+        ], config('jwt.secret'), 'HS256');
+
+        return ['Authorization' => 'Bearer '.$token];
     }
 }

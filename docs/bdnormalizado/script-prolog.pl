@@ -33,6 +33,19 @@ fd(usuario, [id], [username, nome, email, ultimo_acesso, data_cadastro, ativo, s
 fd(usuario, [username], [id, nome, email, ultimo_acesso, data_cadastro, ativo, senha_hash]).
 fd(usuario, [email], [id, username, nome, ultimo_acesso, data_cadastro, ativo, senha_hash]).
 
+% --- AUTENTICAÇÃO (JWT + login Google) ---
+relation(usuario_google, [usuario_id, google_id]).
+key(usuario_google, [usuario_id]).
+key(usuario_google, [google_id]). % UNIQUE
+fd(usuario_google, [usuario_id], [google_id]).
+fd(usuario_google, [google_id], [usuario_id]).
+
+relation(refresh_token, [id, usuario_id, token_hash, expires_at, revoked_at, created_at]).
+key(refresh_token, [id]).
+key(refresh_token, [token_hash]). % UNIQUE
+fd(refresh_token, [id], [usuario_id, token_hash, expires_at, revoked_at, created_at]).
+fd(refresh_token, [token_hash], [id, usuario_id, expires_at, revoked_at, created_at]).
+
 relation(funcionario, [usuario_id, nome, sobrenome, telefone, filial_id]).
 key(funcionario, [usuario_id]).
 fd(funcionario, [usuario_id], [nome, sobrenome, telefone, filial_id]).

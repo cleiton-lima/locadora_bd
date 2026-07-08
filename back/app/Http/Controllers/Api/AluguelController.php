@@ -55,6 +55,12 @@ class AluguelController extends Controller
             ], 404);
         }
 
+        if (! empty($data['pessoa_fisica_id']) && ! $this->service->cnhValidaParaAluguel($data['pessoa_fisica_id'], $data['data_inicial'])) {
+            return response()->json([
+                'message' => 'CNH vencida para a data de retirada.',
+            ], 409);
+        }
+
         $bloqueio = $this->service->bloqueioVeiculoParaAluguel(
             $data['veiculo_id'],
             ! empty($data['pessoa_fisica_id'])

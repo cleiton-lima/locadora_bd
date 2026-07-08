@@ -88,4 +88,63 @@ class ContratoFrotaService
             WHERE id = ?
         ", [$id]);
     }
+
+    /**
+     * Encerra o contrato: define data_final, finaliza os Aluguel ATIVO
+     * vinculados e devolve os respectivos Veiculo para 'DISPONIVEL'.
+     * Retorna a quantidade de veículos liberados.
+     */
+    public function encerrar(int $id, array $data): int
+    {
+        if (DB::getDriverName() === 'mysql') {
+            return $this->encerrarViaProcedure($id, $data);
+        }
+
+        return DB::transaction(function () use ($id, $data) {
+            $veiculos = DB::select("
+                SELECT Veiculo_id
+                FROM Aluguel
+                WHERE Contrato_frota_id = ?
+                  AND status = 'ATIVO'
+            ", [$id]);
+
+            foreach ($veiculos as $veiculo) {
+                DB::update("
+                    UPDATE Veiculo
+                    SET status = 'DISPONIVEL'
+                    WHERE id = ?
+                ", [$veiculo->Veiculo_id]);
+            }
+
+            DB::update("
+                UPDATE Aluguel
+                SET status = 'FINALIZADO',
+                    data_final = ?
+                WHERE Contrato_frota_id = ?
+                  AND status = 'ATIVO'
+            ", [$data['data_final'], $id]);
+
+            DB::update("
+                UPDATE Contrato_Frota
+                SET data_final = ?
+                WHERE id = ?
+            ", [$data['data_final'], $id]);
+
+            return count($veiculos);
+        });
+    }
+
+    /**
+     * Caminho usado em produção (MySQL): delega para
+     * sp_encerrar_contrato_frota (docs/bdnormalizado/stored_procedures.sql).
+     */
+    private function encerrarViaProcedure(int $id, array $data): int
+    {
+        DB::statement('CALL sp_encerrar_contrato_frota(?, ?, @liberados)', [
+            $id,
+            $data['data_final'],
+        ]);
+
+        return (int) DB::selectOne('SELECT @liberados AS liberados')->liberados;
+    }
 }

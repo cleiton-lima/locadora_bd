@@ -99,3 +99,35 @@ decomposição for levada até o fim (implicaria criar uma tabela `Cidade(estado
    fechar BCNF por completo.
 5. Depois de fechado o modelo, atualizar `Requests`/`Controllers` da API (`Empresa`,
    `PessoaFisica`) e criar os que faltam (`CNH`, `CEP`, endereços).
+
+## 5. Extensão: schema de autenticação (JWT + login Google)
+
+Para viabilizar login com JWT e login via Google sem ORM, foram adicionadas duas
+tabelas aditivas em `docs/bdnormalizado/auth-schema.sql`, seguindo o mesmo estilo
+1:1 de extensão de `Usuario` já usado por `Usuario_endereco`/`Usuario_telefone`.
+Nenhuma tabela existente foi alterada.
+
+- **`Usuario_google (Usuario_id PK/FK → Usuario.id, google_id UNIQUE)`**: vínculo
+  opcional 1:1 entre um `Usuario` e uma conta Google. `Usuario_id` já é
+  superchave (chave primária), então `google_id` (também `UNIQUE`, chave
+  candidata alternativa) não cria nenhuma dependência funcional fora de uma
+  superchave — BCNF trivial.
+- **`Refresh_Token (id PK, Usuario_id FK, token_hash UNIQUE, expires_at,
+  revoked_at, created_at)`**: 1:N com `Usuario` (um usuário pode ter vários
+  tokens ao longo do tempo). `id` e `token_hash` são as duas chaves candidatas;
+  todo atributo depende inteiramente de uma delas — BCNF trivial.
+
+Verificação automatizada (`docs/bdnormalizado/script-prolog.pl`, função
+`analisar_schema/0`, executada com `swipl -g analisar_schema -t halt
+docs/bdnormalizado/script-prolog.pl`):
+
+```text
+SUCESSO: A tabela usuario_google ESTA na Forma Normal de Boyce-Codd (BCNF).
+SUCESSO: A tabela refresh_token ESTA na Forma Normal de Boyce-Codd (BCNF).
+```
+
+Todas as demais 30 tabelas do schema original continuam `SUCESSO` após a
+extensão — nenhuma regressão de normalização.
+
+**Pendente (ação manual)**: replicar as duas tabelas no diagrama ER (`.dia`) e no
+modelo relacional do MySQL Workbench, que não fazem parte deste repositório.
