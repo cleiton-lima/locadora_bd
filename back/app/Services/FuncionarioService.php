@@ -11,18 +11,20 @@ class FuncionarioService
     public function listar(): array
     {
         return DB::select("
-            SELECT Usuario_id, nome, sobrenome, telefone, Filial_id
-            FROM Funcionario
-            ORDER BY nome
+            SELECT f.Usuario_id, f.Filial_id, u.nome AS usuario_nome, u.email AS usuario_email
+            FROM Funcionario f
+            INNER JOIN Usuario u ON u.id = f.Usuario_id
+            ORDER BY u.nome
         ");
     }
 
     public function buscarPorId(int $usuarioId): ?object
     {
         return DB::selectOne("
-            SELECT Usuario_id, nome, sobrenome, telefone, Filial_id
-            FROM Funcionario
-            WHERE Usuario_id = ?
+            SELECT f.Usuario_id, f.Filial_id, u.nome AS usuario_nome, u.email AS usuario_email
+            FROM Funcionario f
+            INNER JOIN Usuario u ON u.id = f.Usuario_id
+            WHERE f.Usuario_id = ?
         ", [$usuarioId]);
     }
 
@@ -45,16 +47,10 @@ class FuncionarioService
         DB::insert("
             INSERT INTO Funcionario (
                 Usuario_id,
-                nome,
-                sobrenome,
-                telefone,
                 Filial_id
-            ) VALUES (?, ?, ?, ?, ?)
+            ) VALUES (?, ?)
         ", [
             $data['usuario_id'],
-            $data['nome'],
-            $data['sobrenome'],
-            $data['telefone'],
             $data['filial_id'],
         ]);
 
@@ -65,12 +61,9 @@ class FuncionarioService
     {
         return DB::update("
             UPDATE Funcionario
-            SET nome = ?, sobrenome = ?, telefone = ?, Filial_id = ?
+            SET Filial_id = ?
             WHERE Usuario_id = ?
         ", [
-            $data['nome'],
-            $data['sobrenome'],
-            $data['telefone'],
             $data['filial_id'],
             $usuarioId,
         ]);

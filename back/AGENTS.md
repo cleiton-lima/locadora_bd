@@ -210,8 +210,10 @@ Atendente.Funcionario_id
 
 Lote.Gerente_Comercial_Funcionario_id
 Lote.Montadora_id
+Lote.quantidade_veiculos  -- quantidade comprada no lote
 
-Veiculo.Administrador_Funcionario_id
+Veiculo.Administrador_cadastro_id
+Veiculo.Administrador_responsavel_id
 Veiculo.Filial_id
 Veiculo.Lote_id
 
@@ -285,7 +287,8 @@ Exemplo de JSON recebido:
 {
   "filial_id": 1,
   "lote_id": 2,
-  "administrador_funcionario_id": 3
+  "administrador_cadastro_id": 3,
+  "administrador_responsavel_id": 3
 }
 ```
 
@@ -298,10 +301,11 @@ INSERT INTO Veiculo (
     placa,
     grupo,
     quilometragem,
-    Administrador_Funcionario_id,
+    Administrador_cadastro_id,
+    Administrador_responsavel_id,
     Filial_id,
     Lote_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 ```
 
 ---
@@ -1363,7 +1367,7 @@ Regras:
 - Gerente_Comercial_Funcionario_id deve existir em Gerente_Comercial.Funcionario_id;
 - Montadora_id deve existir em Montadora.id;
 - preco_total deve ser positivo;
-- quantidade_veiculos deve ser maior que zero.
+- quantidade_veiculos deve ser maior que zero e representa a quantidade comprada no lote.
 ```
 
 ### Veiculo
@@ -1383,7 +1387,8 @@ finalidade
 placa
 grupo
 quilometragem
-Administrador_Funcionario_id
+Administrador_cadastro_id
+Administrador_responsavel_id
 Filial_id
 Lote_id
 ```
@@ -1396,7 +1401,10 @@ Regras:
 - finalidade obrigatória;
 - grupo obrigatório;
 - quilometragem não pode ser negativa;
-- Administrador_Funcionario_id deve existir em Administrador.Funcionario_id;
+- Administrador_cadastro_id deve existir em Administrador.Funcionario_id;
+- Administrador_responsavel_id deve existir em Administrador.Funcionario_id quando informado;
+- se status for diferente de VENDIDO e Administrador_responsavel_id vier vazio, usar Administrador_cadastro_id;
+- se status for VENDIDO, Administrador_responsavel_id pode ser nulo;
 - Filial_id deve existir em Filial.id;
 - Lote_id deve existir em Lote.id.
 ```

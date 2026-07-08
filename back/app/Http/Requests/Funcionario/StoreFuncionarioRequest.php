@@ -18,9 +18,6 @@ class StoreFuncionarioRequest extends FormRequest
     {
         return [
             'usuario_id' => ['required', 'integer'],
-            'nome' => ['required', 'string', 'max:30'],
-            'sobrenome' => ['required', 'string', 'max:30'],
-            'telefone' => ['required', 'string', 'size:11'],
             'filial_id' => ['required', 'integer'],
         ];
     }

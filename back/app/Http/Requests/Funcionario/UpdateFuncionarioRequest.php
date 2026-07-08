@@ -17,9 +17,6 @@ class UpdateFuncionarioRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'nome' => ['required', 'string', 'max:30'],
-            'sobrenome' => ['required', 'string', 'max:30'],
-            'telefone' => ['required', 'string', 'size:11'],
             'filial_id' => ['required', 'integer'],
         ];
     }

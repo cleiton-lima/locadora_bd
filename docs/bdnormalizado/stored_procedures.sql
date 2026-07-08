@@ -175,7 +175,10 @@ BEGIN
 
     SET p_novo_id = LAST_INSERT_ID();
 
-    UPDATE Veiculo SET status = 'VENDIDO' WHERE id = p_veiculo_id;
+    UPDATE Veiculo
+       SET status = 'VENDIDO',
+           Administrador_responsavel_id = NULL
+     WHERE id = p_veiculo_id;
 
     COMMIT;
 END$$

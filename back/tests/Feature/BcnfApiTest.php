@@ -39,6 +39,104 @@ class BcnfApiTest extends TestCase
             ->assertJsonPath('Usuario_id', 1);
     }
 
+    public function test_docker_seed_includes_rio_grande_do_norte_operational_data(): void
+    {
+        $seedPath = base_path('../docs/bdnormalizado/seed-rn.sql');
+        $composePath = base_path('../docker-compose.yml');
+
+        $this->assertFileExists($seedPath);
+        $this->assertFileExists($composePath);
+
+        $seed = file_get_contents($seedPath);
+        $compose = file_get_contents($composePath);
+
+        $this->assertStringContainsString('SET NAMES utf8mb4', $seed);
+        $this->assertStringContainsString("('RN', 'Rio Grande do Norte')", $seed);
+        $this->assertStringContainsString('Natal - Capim Macio', $seed);
+        $this->assertStringContainsString('Natal - Ponta Negra', $seed);
+        $this->assertStringContainsString('Mossoró - Centro', $seed);
+        $this->assertStringContainsString('Administrador_cadastro_id', $seed);
+        $this->assertStringContainsString('06-seed-rn.sql', $compose);
+    }
+
+    public function test_cors_allows_common_local_vite_origins(): void
+    {
+        $origins = config('cors.allowed_origins');
+        $patterns = config('cors.allowed_origins_patterns');
+
+        $this->assertContains('http://localhost:5173', $origins);
+        $this->assertContains('http://127.0.0.1:5173', $origins);
+        $this->assertContains('#^http://(10|172\.(1[6-9]|2[0-9]|3[0-1])|192\.168)\.[0-9.]+:5173$#', $patterns);
+    }
+
+    public function test_funcionario_uses_usuario_data_without_duplicate_fields(): void
+    {
+        $response = $this->postJson('/api/funcionarios', [
+            'usuario_id' => 1,
+            'filial_id' => 1,
+        ], $this->authHeaders([Roles::ADMINISTRADOR], 30));
+
+        $response->assertCreated()
+            ->assertJsonPath('id', 1);
+
+        $this->assertDatabaseHas('Funcionario', [
+            'Usuario_id' => 1,
+            'Filial_id' => 1,
+        ]);
+
+        $this->getJson('/api/funcionarios/1', $this->authHeaders([Roles::ADMINISTRADOR], 30))
+            ->assertOk()
+            ->assertJsonPath('Usuario_id', 1)
+            ->assertJsonPath('Filial_id', 1)
+            ->assertJsonPath('usuario_nome', 'Usuario 1')
+            ->assertJsonPath('usuario_email', 'u1@example.com');
+    }
+
+    public function test_veiculo_uses_registration_and_current_responsible_admins(): void
+    {
+        $response = $this->postJson('/api/veiculos', [
+            'status' => 'DISPONIVEL',
+            'finalidade' => 'CURTA_DURACAO',
+            'placa' => 'XYZ1234',
+            'grupo' => 'B',
+            'quilometragem' => 50,
+            'administrador_cadastro_id' => 30,
+            'filial_id' => 1,
+            'lote_id' => 1,
+        ], $this->authHeaders([Roles::ADMINISTRADOR], 30));
+
+        $response->assertCreated();
+
+        $this->assertDatabaseHas('Veiculo', [
+            'id' => $response->json('id'),
+            'Administrador_cadastro_id' => 30,
+            'Administrador_responsavel_id' => 30,
+        ]);
+    }
+
+    public function test_veiculo_vendido_allows_null_current_responsible_admin(): void
+    {
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $this->putJson('/api/veiculos/100', [
+            'status' => 'VENDIDO',
+            'finalidade' => 'CURTA_DURACAO',
+            'placa' => 'ABC1234',
+            'grupo' => 'A',
+            'quilometragem' => 1000,
+            'administrador_cadastro_id' => 30,
+            'administrador_responsavel_id' => null,
+            'filial_id' => 1,
+            'lote_id' => 1,
+        ], $this->authHeaders([Roles::ADMINISTRADOR], 30))->assertOk();
+
+        $this->assertDatabaseHas('Veiculo', [
+            'id' => 100,
+            'status' => 'VENDIDO',
+            'Administrador_responsavel_id' => null,
+        ]);
+    }
+
     public function test_cnh_rejects_duplicate_number(): void
     {
         $payload = [
@@ -267,7 +365,59 @@ class BcnfApiTest extends TestCase
         $this->assertDatabaseHas('Veiculo', [
             'id' => 100,
             'status' => 'VENDIDO',
+            'Administrador_responsavel_id' => null,
         ]);
+    }
+
+    public function test_aluguel_accepts_fleet_contract_without_pessoa_fisica(): void
+    {
+        DB::table('Contrato_Frota')->insert([
+            'id' => 70,
+            'Gerente_Comercial_id' => 10,
+            'Empresa_id' => 2,
+            'data_inicio' => '2026-01-01 08:00:00',
+            'data_final' => '2026-12-31 18:00:00',
+            'quantidade_veiculos' => 1,
+        ]);
+        $this->insertVeiculo(status: 'DISPONIVEL', finalidade: 'LONGA_DURACAO');
+
+        $this->postJson('/api/alugueis', $this->rentalPayload([
+            'pessoa_fisica_id' => null,
+            'contrato_frota_id' => 70,
+            'tipo' => 'LONGA_DURACAO',
+            'data_final_prevista' => '2026-01-08 08:00:00',
+        ]), $this->authHeaders([Roles::ATENDENTE]))
+            ->assertCreated();
+    }
+
+    public function test_aluguel_rejects_pessoa_fisica_and_contract_together(): void
+    {
+        $this->insertPessoaFisica();
+        DB::table('Contrato_Frota')->insert([
+            'id' => 70,
+            'Gerente_Comercial_id' => 10,
+            'Empresa_id' => 2,
+            'data_inicio' => '2026-01-01 08:00:00',
+            'data_final' => '2026-12-31 18:00:00',
+            'quantidade_veiculos' => 1,
+        ]);
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $this->postJson('/api/alugueis', $this->rentalPayload([
+            'contrato_frota_id' => 70,
+        ]), $this->authHeaders([Roles::ATENDENTE]))
+            ->assertUnprocessable();
+    }
+
+    public function test_aluguel_rejects_missing_pessoa_fisica_and_contract(): void
+    {
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $this->postJson('/api/alugueis', $this->rentalPayload([
+            'pessoa_fisica_id' => null,
+            'contrato_frota_id' => null,
+        ]), $this->authHeaders([Roles::ATENDENTE]))
+            ->assertUnprocessable();
     }
 
     public function test_encerrar_contrato_frota_finalizes_rentals_and_frees_vehicles(): void
@@ -436,6 +586,74 @@ class BcnfApiTest extends TestCase
         ]);
     }
 
+    public function test_public_quotation_returns_available_groups_without_token(): void
+    {
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $response = $this->postJson('/api/public/cotacoes', $this->quotationPayload());
+
+        $response->assertOk()
+            ->assertJsonPath('filial_retirada.id', 1)
+            ->assertJsonPath('grupos.0.grupo', 'A')
+            ->assertJsonPath('grupos.0.opcoes_quilometragem.0.tipo', 'ECONOMICA')
+            ->assertJsonPath('grupos.0.opcoes_quilometragem.0.total', 119)
+            ->assertJsonPath('grupos.0.opcoes_quilometragem.1.tipo', 'ILIMITADA')
+            ->assertJsonPath('grupos.0.opcoes_quilometragem.1.total', 140);
+    }
+
+    public function test_reservation_requires_login(): void
+    {
+        $this->postJson('/api/reservas', $this->reservationPayload())
+            ->assertStatus(401);
+    }
+
+    public function test_reservation_requires_completed_pessoa_fisica_profile(): void
+    {
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $this->postJson('/api/reservas', $this->reservationPayload(), $this->authHeaders([]))
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'PESSOA_FISICA_REQUIRED');
+    }
+
+    public function test_reservation_creates_real_rental_and_marks_vehicle_as_alugado(): void
+    {
+        $this->insertPessoaFisica();
+        $this->insertVeiculo(status: 'DISPONIVEL');
+
+        $response = $this->postJson('/api/reservas', $this->reservationPayload([
+            'total_informado' => 1,
+        ]), $this->authHeaders([Roles::CLIENTE_PF], 1));
+
+        $response->assertCreated()
+            ->assertJsonPath('message', 'Reserva confirmada com sucesso.')
+            ->assertJsonPath('total', 140);
+
+        $this->assertDatabaseHas('Aluguel', [
+            'id' => $response->json('aluguel_id'),
+            'Atendente_entrega_id' => 20,
+            'Pessoa_Fisica_id' => 1,
+            'status' => 'ATIVO',
+            'valor' => 140.0,
+            'tipo' => 'CURTA_DURACAO',
+            'Veiculo_id' => 100,
+        ]);
+        $this->assertDatabaseHas('Veiculo', [
+            'id' => 100,
+            'status' => 'ALUGADO',
+        ]);
+    }
+
+    public function test_reservation_blocks_when_group_has_no_available_vehicle(): void
+    {
+        $this->insertPessoaFisica();
+        $this->insertVeiculo(status: 'ALUGADO');
+
+        $this->postJson('/api/reservas', $this->reservationPayload(), $this->authHeaders([Roles::CLIENTE_PF], 1))
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Nenhum veículo disponível para o grupo selecionado.');
+    }
+
     private function insertUsuarioComSenha(int $id, string $username, string $email, string $senha): void
     {
         DB::table('Usuario')->insert([
@@ -470,7 +688,7 @@ class BcnfApiTest extends TestCase
         DB::statement('CREATE TABLE Filial (id INTEGER PRIMARY KEY, nome TEXT)');
         DB::statement('CREATE TABLE Oficina (id INTEGER PRIMARY KEY, nome TEXT)');
         DB::statement('CREATE TABLE Montadora (id INTEGER PRIMARY KEY, nome TEXT)');
-        DB::statement('CREATE TABLE Funcionario (Usuario_id INTEGER PRIMARY KEY, nome TEXT, sobrenome TEXT, telefone TEXT, Filial_id INTEGER)');
+        DB::statement('CREATE TABLE Funcionario (Usuario_id INTEGER PRIMARY KEY, Filial_id INTEGER)');
         DB::statement('CREATE TABLE Gerente_Comercial (Funcionario_id INTEGER PRIMARY KEY)');
         DB::statement('CREATE TABLE Administrador (Funcionario_id INTEGER PRIMARY KEY)');
         DB::statement('CREATE TABLE Atendente (Funcionario_id INTEGER PRIMARY KEY)');
@@ -480,7 +698,7 @@ class BcnfApiTest extends TestCase
         DB::statement('CREATE TABLE CNH (numero TEXT PRIMARY KEY, estado TEXT, categoria TEXT, data_emissao TEXT, data_validade TEXT)');
         DB::statement('CREATE TABLE Pessoa_Fisica (Cliente_id INTEGER PRIMARY KEY, CPF TEXT UNIQUE, CNH_numero TEXT UNIQUE)');
         DB::statement('CREATE TABLE Lote (id INTEGER PRIMARY KEY, Gerente_Comercial_Funcionario_id INTEGER, Montadora_id INTEGER, preco_total REAL, quantidade_veiculos INTEGER)');
-        DB::statement('CREATE TABLE Veiculo (id INTEGER PRIMARY KEY, status TEXT, finalidade TEXT, placa TEXT UNIQUE, grupo TEXT, quilometragem INTEGER, Administrador_Funcionario_id INTEGER, Filial_id INTEGER, Lote_id INTEGER)');
+        DB::statement('CREATE TABLE Veiculo (id INTEGER PRIMARY KEY, status TEXT, finalidade TEXT, placa TEXT UNIQUE, grupo TEXT, quilometragem INTEGER, Administrador_cadastro_id INTEGER, Administrador_responsavel_id INTEGER NULL, Filial_id INTEGER, Lote_id INTEGER)');
         DB::statement('CREATE TABLE Servico (id INTEGER PRIMARY KEY, status TEXT, data_inicio TEXT, data_fim TEXT NULL, custo REAL NULL, tipo TEXT, Veiculo_id INTEGER, Administrador_Funcionario_id INTEGER, Oficina_id INTEGER)');
         DB::statement('CREATE TABLE Aluguel (id INTEGER PRIMARY KEY AUTOINCREMENT, Atendente_entrega_id INTEGER, Atendente_devolucao_id INTEGER NULL, Pessoa_Fisica_id INTEGER NULL, status TEXT, valor REAL, tipo TEXT, data_inicial TEXT, data_final TEXT NULL, data_final_prevista TEXT, Contrato_frota_id INTEGER NULL, Veiculo_id INTEGER)');
         DB::statement('CREATE TABLE Venda (id INTEGER PRIMARY KEY, valor REAL, status TEXT, Veiculo_id INTEGER, Pessoa_Fisica_id INTEGER, Gerente_Comercial_Funcionario_id INTEGER)');
@@ -511,10 +729,10 @@ class BcnfApiTest extends TestCase
         DB::table('Filial')->insert(['id' => 1, 'nome' => 'Filial Centro']);
         DB::table('Montadora')->insert(['id' => 1, 'nome' => 'Montadora']);
         DB::table('Funcionario')->insert([
-            ['Usuario_id' => 10, 'nome' => 'Gerente', 'sobrenome' => 'Teste', 'telefone' => '84999990000', 'Filial_id' => 1],
-            ['Usuario_id' => 20, 'nome' => 'Atendente', 'sobrenome' => 'Um', 'telefone' => '84999990001', 'Filial_id' => 1],
-            ['Usuario_id' => 21, 'nome' => 'Atendente', 'sobrenome' => 'Dois', 'telefone' => '84999990002', 'Filial_id' => 1],
-            ['Usuario_id' => 30, 'nome' => 'Admin', 'sobrenome' => 'Teste', 'telefone' => '84999990003', 'Filial_id' => 1],
+            ['Usuario_id' => 10, 'Filial_id' => 1],
+            ['Usuario_id' => 20, 'Filial_id' => 1],
+            ['Usuario_id' => 21, 'Filial_id' => 1],
+            ['Usuario_id' => 30, 'Filial_id' => 1],
         ]);
         DB::table('Gerente_Comercial')->insert(['Funcionario_id' => 10]);
         DB::table('Atendente')->insert([['Funcionario_id' => 20], ['Funcionario_id' => 21]]);
@@ -545,16 +763,17 @@ class BcnfApiTest extends TestCase
         ]);
     }
 
-    private function insertVeiculo(string $status): void
+    private function insertVeiculo(string $status, string $finalidade = 'CURTA_DURACAO'): void
     {
         DB::table('Veiculo')->insert([
             'id' => 100,
             'status' => $status,
-            'finalidade' => 'CURTA_DURACAO',
+            'finalidade' => $finalidade,
             'placa' => 'ABC1234',
             'grupo' => 'A',
             'quilometragem' => 1000,
-            'Administrador_Funcionario_id' => 30,
+            'Administrador_cadastro_id' => 30,
+            'Administrador_responsavel_id' => $status === 'VENDIDO' ? null : 30,
             'Filial_id' => 1,
             'Lote_id' => 1,
         ]);
@@ -581,6 +800,25 @@ class BcnfApiTest extends TestCase
             'data_final' => null,
             'data_final_prevista' => '2026-01-01 12:00:00',
             'veiculo_id' => 100,
+        ], $overrides);
+    }
+
+    private function quotationPayload(array $overrides = []): array
+    {
+        return array_merge([
+            'filial_retirada_id' => 1,
+            'filial_devolucao_id' => 1,
+            'data_retirada' => '2026-01-01 08:00:00',
+            'data_devolucao' => '2026-01-01 12:00:00',
+        ], $overrides);
+    }
+
+    private function reservationPayload(array $overrides = []): array
+    {
+        return array_merge($this->quotationPayload(), [
+            'grupo' => 'A',
+            'quilometragem_tipo' => 'ILIMITADA',
+            'adicionais' => [],
         ], $overrides);
     }
 

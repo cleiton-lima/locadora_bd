@@ -46,9 +46,9 @@ key(refresh_token, [token_hash]). % UNIQUE
 fd(refresh_token, [id], [usuario_id, token_hash, expires_at, revoked_at, created_at]).
 fd(refresh_token, [token_hash], [id, usuario_id, expires_at, revoked_at, created_at]).
 
-relation(funcionario, [usuario_id, nome, sobrenome, telefone, filial_id]).
+relation(funcionario, [usuario_id, filial_id]).
 key(funcionario, [usuario_id]).
-fd(funcionario, [usuario_id], [nome, sobrenome, telefone, filial_id]).
+fd(funcionario, [usuario_id], [filial_id]).
 
 relation(gerente_comercial, [funcionario_id]).
 key(gerente_comercial, [funcionario_id]).
@@ -83,11 +83,11 @@ relation(lote, [id, gerente_comercial_funcionario_id, montadora_id, preco_total,
 key(lote, [id]).
 fd(lote, [id], [gerente_comercial_funcionario_id, montadora_id, preco_total, quantidade_veiculos]).
 
-relation(veiculo, [id, status, finalidade, placa, grupo, quilometragem, administrador_funcionario_id, filial_id, lote_id]).
+relation(veiculo, [id, status, finalidade, placa, grupo, quilometragem, administrador_cadastro_id, administrador_responsavel_id, filial_id, lote_id]).
 key(veiculo, [id]).
 key(veiculo, [placa]). % UNIQUE
-fd(veiculo, [id], [status, finalidade, placa, grupo, quilometragem, administrador_funcionario_id, filial_id, lote_id]).
-fd(veiculo, [placa], [id, status, finalidade, grupo, quilometragem, administrador_funcionario_id, filial_id, lote_id]).
+fd(veiculo, [id], [status, finalidade, placa, grupo, quilometragem, administrador_cadastro_id, administrador_responsavel_id, filial_id, lote_id]).
+fd(veiculo, [placa], [id, status, finalidade, grupo, quilometragem, administrador_cadastro_id, administrador_responsavel_id, filial_id, lote_id]).
 
 relation(servico, [id, status, data_inicio, data_fim, custo, tipo, veiculo_id, administrador_funcionario_id, oficina_id]).
 key(servico, [id]).

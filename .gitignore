@@ -15,6 +15,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+back/docker.env
 
 # Laravel / PHP
 back/vendor/
@@ -39,6 +40,11 @@ front/.nuxt/
 front/.output/
 front/dist/
 front/build/
+front/tsconfig.tsbuildinfo
 front/.env
 front/.env.*
 !front/.env.example
+
+# Notas/rascunhos locais
+deployefornt.md
+RESUMO_DIFF.md

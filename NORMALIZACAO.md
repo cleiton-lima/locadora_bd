@@ -51,6 +51,20 @@ A API já tem `Requests`/`Controllers` construídos em cima do schema **original
 
 A modelagem normalizada **não está 100% em BCNF**. Pontos encontrados, do mais crítico ao mais discutível:
 
+### 3.0 Ajustes já incorporados ao schema oficial
+
+O script `docs/bdnormalizado/locadora_imd-bcnf.sql` já incorpora uma rodada
+de correções de anomalia usadas pela API:
+
+- `Funcionario` não duplica mais `nome`, `sobrenome` e `telefone`; nome/e-mail
+  vêm de `Usuario`, telefones vêm de `Usuario_telefone`.
+- `Veiculo` separa `Administrador_cadastro_id` (histórico obrigatório) de
+  `Administrador_responsavel_id` (responsável atual, nulo quando vendido).
+- `Aluguel` tem `CHECK` para garantir exatamente um alvo: pessoa física ou
+  contrato de frota.
+- `Lote.quantidade_veiculos` fica documentado como quantidade comprada no
+  lote, não como quantidade atual derivada de `Veiculo`.
+
 ### 3.1 `logradouro` tratado de forma inconsistente entre as tabelas de endereço (crítico)
 No Brasil, um CEP de logradouro normalmente já determina a rua, ou seja `CEP → logradouro`
 é uma dependência funcional válida, não só `CEP → estado/cidade/bairro`.

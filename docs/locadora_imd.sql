@@ -67,9 +67,6 @@ ENGINE = InnoDB;
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `locadora_imd`.`Funcionario` (
   `Usuario_id` INT NOT NULL,
-  `nome` VARCHAR(30) NOT NULL,
-  `sobrenome` VARCHAR(30) NOT NULL,
-  `telefone` CHAR(11) NOT NULL,
   `Filial_id` INT NOT NULL,
   INDEX `fk_Funcionario_Locadora1_idx` (`Filial_id` ASC) VISIBLE,
   PRIMARY KEY (`Usuario_id`),
@@ -108,7 +105,7 @@ CREATE TABLE IF NOT EXISTS `locadora_imd`.`Lote` (
   `Gerente_Comercial_Funcionario_id` INT NOT NULL,
   `Montadora_id` INT NOT NULL,
   `preco_total` DECIMAL(10,2) NOT NULL,
-  `quantidade_veiculos` INT NOT NULL,
+  `quantidade_veiculos` INT NOT NULL COMMENT 'Quantidade comprada no lote, não total atual derivado da tabela Veiculo.',
   PRIMARY KEY (`id`),
   INDEX `fk_Lote_Montadora1_idx` (`Montadora_id` ASC) VISIBLE,
   INDEX `fk_Lote_Gerente_Comercial1_idx` (`Gerente_Comercial_Funcionario_id` ASC) VISIBLE,
@@ -149,13 +146,15 @@ CREATE TABLE IF NOT EXISTS `locadora_imd`.`Veiculo` (
   `placa` CHAR(7) NOT NULL,
   `grupo` CHAR(1) NOT NULL,
   `quilometragem` INT NOT NULL,
-  `Administrador_Funcionario_id` INT NOT NULL,
+  `Administrador_cadastro_id` INT NOT NULL,
+  `Administrador_responsavel_id` INT NULL,
   `Filial_id` INT NOT NULL,
   `Lote_id` INT NOT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_Veiculo_Lote1_idx` (`Lote_id` ASC) VISIBLE,
   INDEX `fk_Veiculo_Locadora1_idx` (`Filial_id` ASC) VISIBLE,
-  INDEX `fk_Veiculo_Administrador1_idx` (`Administrador_Funcionario_id` ASC) VISIBLE,
+  INDEX `fk_Veiculo_Administrador_cadastro_idx` (`Administrador_cadastro_id` ASC) VISIBLE,
+  INDEX `fk_Veiculo_Administrador_responsavel_idx` (`Administrador_responsavel_id` ASC) VISIBLE,
   UNIQUE INDEX `placa_UNIQUE` (`placa` ASC) VISIBLE,
   CONSTRAINT `fk_Veiculo_Lote1`
     FOREIGN KEY (`Lote_id`)
@@ -167,8 +166,13 @@ CREATE TABLE IF NOT EXISTS `locadora_imd`.`Veiculo` (
     REFERENCES `locadora_imd`.`Filial` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
-  CONSTRAINT `fk_Veiculo_Administrador1`
-    FOREIGN KEY (`Administrador_Funcionario_id`)
+  CONSTRAINT `fk_Veiculo_Administrador_cadastro`
+    FOREIGN KEY (`Administrador_cadastro_id`)
+    REFERENCES `locadora_imd`.`Administrador` (`Funcionario_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_Veiculo_Administrador_responsavel`
+    FOREIGN KEY (`Administrador_responsavel_id`)
     REFERENCES `locadora_imd`.`Administrador` (`Funcionario_id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
@@ -334,7 +338,12 @@ CREATE TABLE IF NOT EXISTS `locadora_imd`.`Aluguel` (
     FOREIGN KEY (`Atendente_devolucao_id`)
     REFERENCES `locadora_imd`.`Atendente` (`Funcionario_id`)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
+    ON UPDATE NO ACTION,
+  CONSTRAINT `chk_Aluguel_alvo_unico`
+    CHECK (
+      (`Pessoa_Fisica_id` IS NOT NULL AND `Contrato_frota_id` IS NULL)
+      OR (`Pessoa_Fisica_id` IS NULL AND `Contrato_frota_id` IS NOT NULL)
+    ))
 ENGINE = InnoDB;
 
 

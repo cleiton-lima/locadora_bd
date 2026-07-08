@@ -22,7 +22,9 @@ use App\Http\Controllers\Api\MontadoraController;
 use App\Http\Controllers\Api\OficinaEnderecoController;
 use App\Http\Controllers\Api\OficinaController;
 use App\Http\Controllers\Api\PessoaFisicaController;
+use App\Http\Controllers\Api\PublicController;
 use App\Http\Controllers\Api\RelatorioController;
+use App\Http\Controllers\Api\ReservaController;
 use App\Http\Controllers\Api\ServicoController;
 use App\Http\Controllers\Api\UsuarioEnderecoController;
 use App\Http\Controllers\Api\UsuarioController;
@@ -37,6 +39,8 @@ Route::post('auth/refresh', [AuthController::class, 'refresh']);
 Route::post('auth/logout', [AuthController::class, 'logout']);
 Route::get('auth/google/redirect', [AuthController::class, 'googleRedirect']);
 Route::get('auth/google/callback', [AuthController::class, 'googleCallback']);
+Route::get('public/filiais', [PublicController::class, 'filiais']);
+Route::post('public/cotacoes', [PublicController::class, 'cotacoes']);
 
 // Cadastro público (sign-up). Precisa ficar fora do jwt.auth: é o único jeito
 // de um cliente novo conseguir uma conta antes de ter qualquer token.
@@ -44,6 +48,7 @@ Route::post('usuarios', [UsuarioController::class, 'store']);
 
 Route::middleware('jwt.auth')->group(function () {
     Route::get('auth/me', [AuthController::class, 'me']);
+    Route::post('reservas', [ReservaController::class, 'store']);
 
     // Escrita restrita ao Administrador: gestão de frota/estrutura da locadora.
     Route::middleware('role:'.Roles::ADMINISTRADOR)->group(function () {

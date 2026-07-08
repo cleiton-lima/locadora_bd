@@ -46,6 +46,45 @@ cmd = "php artisan config:cache && php artisan route:cache && php artisan serve 
 único, sem muita carga simultânea). Para produção real, trocar por PHP-FPM +
 Nginx — fora do escopo deste deploy.
 
+> **Docker neste repositório é só para desenvolvimento local.** Mesmo com
+> `back/Dockerfile` e `docker-compose.yml`, o serviço da API no Railway deve
+> continuar usando Nixpacks com Root Directory `back/`. Não apontar o Railway
+> para o Dockerfile sem revisar o runtime de produção.
+
+### Rodar API + MySQL localmente com Docker
+
+Na raiz do monorepo:
+
+```bash
+docker compose up --build
+```
+
+Isso sobe:
+
+- MySQL em `localhost:3307`, banco `locadora_imd`, usuário/senha
+  `locadora`/`locadora`;
+- API em `http://localhost:8000`;
+- variáveis locais da API a partir de `back/docker.env`, montado como
+  `.env` dentro do container para não depender do seu `.env` local;
+- scripts SQL oficiais aplicados na ordem:
+  `locadora_imd-bcnf.sql`, `auth-schema.sql`, `stored_procedures.sql`,
+  `triggers.sql`, `views.sql`, `seed-rn.sql`.
+
+O `seed-rn.sql` é só para desenvolvimento local: cria filiais com endereço
+no Rio Grande do Norte, equipe mínima, cliente de teste e frota disponível
+para testar o funil de reserva. Usuários seedados usam senha `segredo123`.
+
+Os scripts em `/docker-entrypoint-initdb.d` só rodam quando o volume do MySQL
+é criado pela primeira vez. Para recriar o banco local do zero:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+Não usar `docker compose down -v` se houver dados locais que você quer
+preservar.
+
 ---
 
 ## 3. Variáveis de ambiente da API
@@ -108,6 +147,8 @@ mysql -h <host-railway> -P <porta> -u <user> -p<senha> locadora_imd < docs/bdnor
 
 Rodar sempre nessa ordem — cada script depende do anterior (procedures,
 triggers e views referenciam tabelas do schema base + `auth-schema.sql`).
+Não aplicar `seed-rn.sql` em produção/Railway a menos que seja uma demo
+controlada com dados fictícios.
 
 Se precisar recriar o banco do zero no Railway, repetir os 5 comandos acima
 (todos usam `DROP ... IF EXISTS` antes de recriar).

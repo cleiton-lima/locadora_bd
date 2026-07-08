@@ -22,7 +22,8 @@ class StoreVeiculoRequest extends FormRequest
             'placa' => ['required', 'string', 'size:7'],
             'grupo' => ['required', 'string', 'size:1'],
             'quilometragem' => ['required', 'integer', 'min:0'],
-            'administrador_funcionario_id' => ['required', 'integer'],
+            'administrador_cadastro_id' => ['required', 'integer'],
+            'administrador_responsavel_id' => ['nullable', 'integer'],
             'filial_id' => ['required', 'integer'],
             'lote_id' => ['required', 'integer'],
         ];

@@ -88,7 +88,8 @@ class VendaService
 
             DB::update("
                 UPDATE Veiculo
-                SET status = 'VENDIDO'
+                SET status = 'VENDIDO',
+                    Administrador_responsavel_id = NULL
                 WHERE id = ?
             ", [$data['veiculo_id']]);
 
